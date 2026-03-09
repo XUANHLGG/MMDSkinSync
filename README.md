@@ -1,60 +1,50 @@
 # MMDSync
 
-MMDSync 是一个专为 Minecraft 设计的 MMD 资源同步模组（目前基于 NeoForge）。它旨在解决多人游戏中 MMD 模型（PMX）和动作数据（VMD）分发困难的问题，提供了内置 Web 服务器、增量同步、智能压缩等高级功能。
+**MMDSync** 是 [MC-MMD-rust](https://github.com/shiroha-233/MC-MMD-rust) 模组的附属扩展，主要用来解决多人游戏中 MMD 模型（PMX）、动作（VMD）和贴图的同步问题。
 
-## ✨ 主要功能
+> [!IMPORTANT]
+> **本模组必须配合 [MC-MMD-rust](https://github.com/shiroha-233/MC-MMD-rust) 使用**。
+> 目前模组端支持 Minecraft **1.21.1** 版本；插件服务端配合 [MmdSkin-Bukkit](https://github.com/opdent-cmd/MmdSkin-Bukkit.git) 使用，配合跨版本插件理论上对服务端没有版本限制（只要插件跑得起来）。
 
-*   **内置 Web 管理界面**：无需通过 FTP 或繁琐的文件传输，直接在浏览器中（默认端口 5000）拖拽上传模型文件。
-*   **智能整包同步**：自动识别模型文件夹，支持将整个模型目录打包为 ZIP 进行一次性下载，大幅减少 HTTP 请求次数，提升跨运营商网络下的同步速度。
-*   **增量更新**：基于 MD5 校验，客户端仅下载变更或缺失的文件/文件夹，节省带宽。
-*   **高性能传输**：
-    *   支持 GZIP 压缩（智能排除已压缩文件），减少传输体积。
-    *   64KB 大缓冲区设计，优化高延迟网络体验。
-    *   支持服务器端下行带宽限制（QoS）。
-*   **无缝体验**：客户端下载完成后自动解压并归档到正确目录（`3d-skin/EntityPlayer` 或 `3d-skin/StageAnim`），无需手动干预。
+## ✨ 功能特性
+
+*   **网页上传模型**：不用手动发文件给别人，直接在浏览器里（默认端口 5000）拖拽模型文件夹或压缩包就能上传。
+*   **自动增量同步**：进服时自动检查缺少的模型或动作，只下载更新的部分，支持 GZIP 压缩。
+*   **模型加密保护**：同步过程和本地存储都经过加密处理，防止服务器模型被玩家恶意提取。
+*   **服务器绑定**：同步的模型只在对应的服务器里显示。换服务器或者退服后，这些模型会自动隐藏并清理内存。
+*   **多平台支持**：提供 NeoForge、Fabric 模组版以及 [Bukkit/Paper 插件版](https://github.com/opdent-cmd/MmdSkin-Bukkit.git)。
 
 ## 🛠️ 安装与使用
 
-1.  **安装**：将模组 `.jar` 文件放入服务端和客户端的 `mods` 文件夹。
-2.  **配置**：启动一次游戏后，配置文件生成于 `config/mmdsync-common.toml`。
-3.  **上传资源**：
-    *   服务端启动后，访问 `http://<服务器IP>:5000`。
-    *   选择上传类型（模型 PMX / 动作 VMD）。
-    *   拖入 `.zip` 压缩包或直接选择模型文件夹上传。
-4.  **客户端同步**：
-    *   玩家进入服务器后，输入指令 `/mmdsync sync` 开始同步。
-    *   同步完成后，MMDSkin 模组即可直接读取最新的模型资源。
+### 1. 服务端 (NeoForge / Fabric / Bukkit)
+1. 把对应的 `.jar` 放到 `mods` 或 `plugins` 文件夹里。
+2. 启动服务器，会自动生成配置文件：
+   - 模组版：`config/mmdsync-common.toml`
+   - 插件版：`plugins/MmdSkin/config.yml`
+3. 确保服务器防火墙放行了 5000 端口（默认端口）。
 
-## ⚙️ 配置文件
+### 2. 客户端 (NeoForge / Fabric)
+1. 安装模组并进入服务器。
+2. 浏览器打开 `http://服务器IP:5000` 上传你的模型。
+3. 游戏里让管理员输入 `/mmdsync` 即可开始同步。
+4. 同步完后，在 MMD 菜单里就能直接看到并换上刚才上传的模型了。
+
+## ⚙️ 配置文件说明 (Mod 示例)
 
 ```toml
 [general]
-# 模型同步服务器地址
-serverUrl = ""
-
-# 是否开启内置同步服务器 (服务端建议开启)
+# 是否开启内置同步服务器
 enableServer = true
-
-# 内置服务器端口
+# 网页上传端口
 serverPort = 5000
-
-# 最大下行带宽 (Mbps)，0 为不限制
+# 服务器私钥 (用于生成稳定的 serverId，不要随便改)
+serverSecret = "自动生成的密钥"
+# 限制下载带宽 (Mbps)，0 为不限制
 maxBandwidthMbps = 0.0
-
-# 是否启用 GZIP 压缩
+# 开启 GZIP 压缩加速下载
 enableGzip = true
 ```
 
-## 🏗️ 开发构建
-
-```bash
-# Windows
-./gradlew build
-
-# Linux / macOS
-./gradlew build
-```
-
-## 📄 开源协议
+## 📄 许可证
 
 MIT License
