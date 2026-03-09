@@ -12,6 +12,13 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Checkout MC-MMD-rust
+        uses: actions/checkout@v4
+        with:
+          repository: shiroha-233/MC-MMD-rust
+          path: MC-MMD-rust
+          fetch-depth: 1
+
       - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:

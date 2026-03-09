@@ -1,198 +1,58 @@
-buildscript {
-    repositories {
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-
 plugins {
-    id 'java-library'
-    id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.140'
-    id 'idea'
+    id "architectury-plugin" version "3.4.162"
+    id "dev.architectury.loom" version "1.9.436" apply false
+    id "com.gradleup.shadow" version "8.3.10" apply false
 }
 
-tasks.named('wrapper', Wrapper).configure {
-    // Define wrapper values here so as to not have to always do so when updating gradlew.properties.
-    // Switching this to Wrapper.DistributionType.ALL will download the full gradle sources that comes with
-    // documentation attached on cursor hover of gradle classes and methods. However, this comes with increased
-    // file size for Gradle. If you do switch this to ALL, run the Gradle wrapper task twice afterwards.
-    // (Verify by checking gradle/wrapper/gradle-wrapper.properties to see if distributionUrl now points to `-all`)
-    distributionType = Wrapper.DistributionType.BIN
+architectury {
+    minecraft = project.minecraft_version
 }
 
-version = mod_version
-group = mod_group_id
+subprojects {
+    apply plugin: "dev.architectury.loom"
+    apply plugin: "architectury-plugin"
 
-repositories {
-    // 1. NeoForge 官方仓库必须放在前面，因为很多资源是它专有的
-    maven { url 'https://maven.neoforged.net/releases/' }
-    maven { url 'https://maven.parchmentmc.org/' }
-
-    mavenCentral()
-}
-
-base {
-    archivesName = mod_id
-}
-
-// Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
-
-neoForge {
-    // Specify the version of NeoForge to use.
-    version = project.neo_version
-
-    parchment {
-        mappingsVersion = project.parchment_mappings_version
-        minecraftVersion = project.parchment_minecraft_version
+    loom {
+        silentMojangMappingsLicense()
     }
 
-    // This line is optional. Access Transformers are automatically detected
-    // accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
-
-    // Default run configurations.
-    // These can be tweaked, removed, or duplicated as needed.
-    runs {
-        client {
-            client()
-
-            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        }
-
-        server {
-            server()
-            programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        }
-
-        // This run config launches GameTestServer and runs all registered gametests, then exits.
-        // By default, the server will crash when no gametests are provided.
-        // The gametest system is also enabled by default for other run configs under the /test command.
-        gameTestServer {
-            type = "gameTestServer"
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        }
-
-        data {
-            data()
-
-            // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
-            // gameDirectory = project.file('run-data')
-
-            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
-            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
-        }
-
-        // applies to all the run configs above
-        configureEach {
-            // Recommended logging data for a userdev environment
-            // The markers can be added/remove as needed separated by commas.
-            // "SCAN": For mods scan.
-            // "REGISTRIES": For firing of registry events.
-            // "REGISTRYDUMP": For getting the contents of all registries.
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-
-            // Recommended logging level for the console
-            // You can set various levels here.
-            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
-            logLevel = org.slf4j.event.Level.DEBUG
-        }
+    base {
+        archivesName = project.mod_id
     }
 
-    mods {
-        // define mod <-> source bindings
-        // these are used to tell the game which sources are for which mod
-        // multi mod projects should define one per mod
-        "${mod_id}" {
-            sourceSet(sourceSets.main)
+    dependencies {
+        minecraft "com.mojang:minecraft:${project.minecraft_version}"
+        // The following line declares the mojmap mappings, you may use other mappings as well
+        mappings loom.layered() {
+            officialMojangMappings()
+            parchment("org.parchmentmc.data:parchment-${project.parchment_minecraft_version}:${project.parchment_mappings_version}@zip")
         }
     }
 }
 
-dependencies {
-    // Example mod dependency with 'implementation'
-    // implementation "com.google.guava:guava:31.0.1-jre"
+allprojects {
+    apply plugin: "java"
+    apply plugin: "maven-publish"
 
-    // Example mod dependency with 'runtimeOnly'
-    // runtimeOnly "org.slf4j:slf4j-simple:1.7.32"
+    version = project.mod_version
+    group = project.mod_group_id
 
-    // Example mod dependency with 'compileOnly'
-    // compileOnly "org.projectlombok:lombok:1.18.22"
-
-    // Example mod dependency with 'annotationProcessor'
-    // annotationProcessor "org.projectlombok:lombok:1.18.22"
-}
-
-// This block of code injects a bunch of stuff into the 'mods.toml' file. If you have more than one mod, you'll need to duplicate this.
-var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
-    var replaceProperties = [
-            minecraft_version      : minecraft_version,
-            minecraft_version_range: minecraft_version_range,
-            neo_version            : neo_version,
-            neo_version_range      : neo_version_range,
-            loader_version_range   : loader_version_range,
-            mod_id                 : mod_id,
-            mod_name               : mod_name,
-            mod_license            : mod_license,
-            mod_version            : mod_version,
-            mod_authors            : mod_authors,
-            mod_description        : mod_description
-    ]
-    inputs.properties replaceProperties
-    expand replaceProperties
-    from "src/main/templates"
-    into "build/generated/sources/modMetadata"
-    filesMatching('META-INF/neoforge.mods.toml') {
-        expand replaceProperties
-    }
-}
-
-// Tell the compilation tasks to use the output of generateModMetadata
-sourceSets.main.resources.srcDir generateModMetadata
-// Move the resources to the correct place
-neoForge.mods."${mod_id}".sourceSet(sourceSets.main)
-
-// Example for how to get properties into the manifest for publishing or a jar file
-tasks.withType(Jar).configureEach {
-    manifest {
-        attributes([
-                'Specification-Title'     : mod_id,
-                'Specification-Vendor'    : mod_authors,
-                'Specification-Version'   : '1', // We are version 1 of ourselves
-                'Implementation-Title'    : project.name,
-                'Implementation-Version'  : project.jar.archiveVersion,
-                'Implementation-Vendor'   : mod_authors,
-                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
-        ])
-    }
-}
-
-// Example configuration to allow publishing using the maven-publish plugin
-publishing {
-    publications {
-        register('mavenJava', MavenPublication) {
-            from components.java
-        }
-    }
     repositories {
-        maven {
-            url "file://${project.projectDir}/repo"
-        }
+        // Add repositories to retrieve artifacts from, e.g. jest (for testing)
+        maven { url "https://maven.neoforged.net/releases/" }
+        maven { url "https://maven.parchmentmc.org/" }
+        maven { url "https://maven.fabricmc.net/" }
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://maven.shedaniel.me/" }
+        mavenCentral()
     }
-}
 
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
-}
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+        options.release = 21
+    }
 
-// IDEA no longer automatically configures native libraries for the run configurations, so we need to do it ourselves.
-// This is only required if you want to use the IDEA run configurations.
-if (System.getProperty('idea.sync.active') == 'true') {
-    afterEvaluate {
-        tasks.withType(JavaCompile).all {
-            it.options.compilerArgs << "-Xlint:all" << "-Xlint:-options" << "-Xlint:-processing"
-        }
+    java {
+        withSourcesJar()
     }
 }

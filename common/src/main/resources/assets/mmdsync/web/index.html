@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MMDSkin 资源上传</title>
+    <link href="https://fonts.cdnfonts.com/css/minecraftia" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'FusionPixelZH';
+            src: url('fusion-pixel-zh_hans.woff2') format('woff2');
+            font-display: swap;
+            unicode-range: U+2E80-2EFF, U+2F00-2FDF, U+3000-303F, U+31C0-31EF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
+        }
+        * {
+            font-family: 'Minecraftia', 'FusionPixelZH', 'PingFang SC', sans-serif;
+            box-sizing: border-box;
+        }
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #313233;
+            background-image: url('background.webp'); /* Local Minecraft Background */
+            background-repeat: repeat;
+            background-size: 128px;
+            image-rendering: pixelated;
+            color: white;
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .header { text-align: center; margin: 20px 0 30px 0; }
+        .header h1 { 
+            color: #FFFF55; 
+            font-size: 2.5rem; 
+            margin-bottom: 8px; 
+            text-shadow: 3px 3px #3F3F00;
+        }
+        .header p { color: #AAAAAA; font-size: 1.1rem; }
+        
+        .container { 
+            background: #C6C6C6; 
+            padding: 20px; 
+            border: 4px solid #000;
+            border-top-color: #FFF;
+            border-left-color: #FFF;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 24px;
+            color: #333;
+        }
+        h2 { 
+            color: #000; 
+            font-size: 1.5rem;
+            margin-top: 0; 
+            margin-bottom: 20px;
+            border-bottom: 2px solid #8B8B8B;
+            padding-bottom: 10px;
+        }
+        
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #404040; }
+        
+        select, input[type="file"] { 
+            width: 100%; 
+            padding: 10px; 
+            border: 2px solid #000;
+            background: #FFF;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .upload-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .option-card {
+            background: #8B8B8B;
+            border: 3px solid #000;
+            border-top-color: #C6C6C6;
+            border-left-color: #C6C6C6;
+            padding: 12px 8px;
+            cursor: pointer;
+            text-align: center;
+            color: #FFF;
+            text-shadow: 2px 2px #3F3F3F;
+        }
+        .option-card:hover { background: #9D9D9D; }
+        .option-card.active { 
+            background: #707070; 
+            border-color: #FFF #8B8B8B #8B8B8B #FFF;
+            box-shadow: inset 2px 2px 4px rgba(0,0,0,0.5);
+            color: #FFFF55;
+        }
+        .option-card input[type="radio"] { display: none; }
+        .option-card i { font-style: normal; font-size: 24px; display: block; margin-bottom: 5px; }
+        .option-card span { font-size: 12px; }
+
+        button { 
+            width: 100%; 
+            background: #8B8B8B;
+            border: 3px solid #000;
+            border-top-color: #C6C6C6;
+            border-left-color: #C6C6C6;
+            color: white; 
+            padding: 12px; 
+            font-size: 16px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            text-shadow: 2px 2px #3F3F3F;
+            margin-top: 12px;
+        }
+        button:hover:not(:disabled) { background: #9D9D9D; }
+        button:active:not(:disabled) { 
+            border-color: #FFF #8B8B8B #8B8B8B #FFF;
+            padding-top: 14px;
+            padding-bottom: 10px;
+        }
+        button:disabled { 
+            background: #555; 
+            color: #AAA; 
+            border-color: #333;
+            text-shadow: none;
+            cursor: not-allowed; 
+        }
+        
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+            background: #000;
+            padding: 4px;
+            border: 2px solid #FFF;
+        }
+        .progress-bar-bg {
+            width: 100%;
+            height: 20px;
+            background: #333;
+            position: relative;
+        }
+        .progress-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: #55FF55;
+            box-shadow: inset 0 0 5px #00AA00;
+        }
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #FFF;
+            margin-top: 5px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            background: #C6C6C6;
+            border: 3px solid #000;
+            border-top-color: #FFF;
+            border-left-color: #FFF;
+            padding: 15px 25px;
+            display: none;
+            z-index: 1000;
+            color: #333;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.5);
+        }
+        .notification.show { display: flex; align-items: center; gap: 10px; animation: slideIn 0.3s forwards; }
+        @keyframes slideIn { from { transform: translateY(-100px); } to { transform: translateY(0); } }
+
+        .info-list { padding: 0; list-style: none; margin: 0; }
+        .info-list li { 
+            padding: 10px 0; 
+            border-bottom: 1px solid #8B8B8B;
+            display: flex;
+            gap: 12px;
+            color: #404040;
+            font-size: 13px;
+        }
+        .info-list li:last-child { border-bottom: none; }
+        .info-list li b { color: #000; min-width: 80px; }
+
+        .file-tip {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #555;
+            background: #D8D8D8;
+            padding: 8px;
+            border: 1px dashed #8B8B8B;
+        }
+
+        .footer {
+            text-align: center;
+            color: #AAAAAA;
+            font-size: 12px;
+            margin-top: 40px;
+            padding: 10px;
+            border-top: 2px solid #555555;
+            background-color: rgba(0, 0, 0, 0.5); /* 半透明黑色背景增加对比度 */
+        }
+        .footer a {
+            color: #FFCC00; /* 金色高对比度 */
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+            color: #FFFFFF;
+        }
+    </style>
+</head>
+<body>
+    <div id="notification" class="notification">
+        <i id="notifIcon"></i>
+        <span id="notifMsg"></span>
+    </div>
+
+    <div class="header">
+        <h1>MMDSync</h1>
+        <p>快速同步 MMD 模型与动作到服务器</p>
+    </div>
+    
+    <div class="container">
+        <h2>资源上传</h2>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label>同步目标</label>
+                <select name="zone" id="zone">
+                    <option value="pmx">人物模型 (EntityPlayer)</option>
+                    <option value="vmd">舞台动作 (StageAnim)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>上传方式</label>
+                <div class="upload-options">
+                    <label class="option-card active" id="labelDir">
+                        <input type="radio" name="upload_type" value="dir" id="radioDir" checked>
+                        <i>📁</i>
+                        <span>文件夹</span>
+                    </label>
+                    <label class="option-card" id="labelZip">
+                        <input type="radio" name="upload_type" value="zip" id="radioZip">
+                        <i>📦</i>
+                        <span>ZIP 包</span>
+                    </label>
+                    <label class="option-card" id="labelFile">
+                        <input type="radio" name="upload_type" value="file" id="radioFile">
+                        <i>📄</i>
+                        <span>单文件</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group" id="fileInputContainer">
+                <label id="fileLabel">选择模型文件夹</label>
+                <input type="file" id="files" webkitdirectory directory multiple required>
+                <div class="file-tip" id="fileTip">上传整个模型文件夹，系统会自动识别其中的 .pmx 与贴图资源</div>
+            </div>
+
+            <button type="submit" id="submitBtn">
+                <span>上传</span>
+            </button>
+        </form>
+
+        <div id="progressArea" class="progress-container">
+            <div class="progress-bar-bg">
+                <div id="progressBar" class="progress-bar-fill"></div>
+            </div>
+            <div class="progress-info">
+                <span id="progressText">准备中...</span>
+                <span id="speedText">0 KB/s</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>💡 使用提示</h2>
+        <ul class="info-list">
+            <li><b>压缩包支持</b> <span>你可以直接上传 .zip 格式的压缩包，系统会自动剥离多余层级并完成分类。</span></li>
+            <li><b>操作同步</b> <span>上传完成后，请联系管理员执行 <b>/mmdsync</b> 命令进行全服同步。</span></li>
+            <li><b>模型结构</b> <span>系统支持智能解压，即使模型文件被多层文件夹包裹，也能被自动识别并提取。</span></li>
+            <li><b>温馨提示</b> <span>模型列表刷新可能存在延迟，请耐心等待或重新打开模型菜单。</span></li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        &copy; 2026 MMDSync &bull; 作者 <span style="color: #FFF;">TendoArisu</span> &bull; <a href="https://github.com/XUANHLGG/MMDSkinSync" target="_blank">GitHub</a>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('files');
+        const zoneSelect = document.getElementById('zone');
+        const progressArea = document.getElementById('progressArea');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const speedText = document.getElementById('speedText');
+        const submitBtn = document.getElementById('submitBtn');
+        const radioDir = document.getElementById('radioDir');
+        const radioZip = document.getElementById('radioZip');
+        const radioFile = document.getElementById('radioFile');
+        const labelDir = document.getElementById('labelDir');
+        const labelZip = document.getElementById('labelZip');
+        const labelFile = document.getElementById('labelFile');
+        const fileLabel = document.getElementById('fileLabel');
+        const fileTip = document.getElementById('fileTip');
+
+        const notif = document.getElementById('notification');
+        const notifIcon = document.getElementById('notifIcon');
+        const notifMsg = document.getElementById('notifMsg');
+
+        function updateUI() {
+            labelDir.classList.toggle('active', radioDir.checked);
+            labelZip.classList.toggle('active', radioZip.checked);
+            labelFile.classList.toggle('active', radioFile.checked);
+
+            fileInput.value = '';
+            fileInput.removeAttribute('webkitdirectory');
+            fileInput.removeAttribute('directory');
+            fileInput.removeAttribute('multiple');
+
+            if (radioDir.checked) {
+                fileLabel.textContent = '选择模型文件夹';
+                fileTip.textContent = '上传整个模型文件夹，系统会自动识别其中的 .pmx 与贴图资源';
+                fileInput.setAttribute('webkitdirectory', '');
+                fileInput.setAttribute('directory', '');
+                fileInput.setAttribute('multiple', '');
+                fileInput.accept = '';
+            } else if (radioZip.checked) {
+                fileLabel.textContent = '选择 ZIP 压缩包';
+                fileTip.textContent = '支持上传包含模型与贴图的 .zip 压缩包';
+                fileInput.accept = '.zip';
+            } else {
+                const zone = zoneSelect.value;
+                fileLabel.textContent = zone === 'vmd' ? '选择动作文件' : '选择模型文件';
+                fileTip.textContent = zone === 'vmd'
+                    ? '直接上传单个 .vmd 动作文件'
+                    : '直接上传单个 .pmx 模型文件';
+                fileInput.accept = zone === 'vmd' ? '.vmd' : '.pmx';
+            }
+        }
+
+        function showNotification(msg, type = 'success') {
+            notifMsg.textContent = msg;
+            notif.className = 'notification show ' + type;
+            notifIcon.textContent = type === 'success' ? '✅' : '❌';
+            setTimeout(() => {
+                notif.classList.remove('show');
+            }, 5000);
+        }
+
+        function formatSpeed(bytesPerSec) {
+            if (bytesPerSec > 1024 * 1024) return (bytesPerSec / (1024 * 1024)).toFixed(2) + ' MB/s';
+            if (bytesPerSec > 1024) return (bytesPerSec / 1024).toFixed(2) + ' KB/s';
+            return bytesPerSec.toFixed(0) + ' B/s';
+        }
+
+        async function uploadFile(file, zone, name) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                const startTime = Date.now();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percent + '%';
+                        
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const speed = elapsed > 0 ? e.loaded / elapsed : 0;
+                        
+                        progressText.textContent = `正在上传: ${name} (${Math.round(percent)}%)`;
+                        speedText.textContent = formatSpeed(speed);
+                    }
+                });
+
+                xhr.onreadystatechange = () => {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) resolve();
+                        else reject(new Error(`上传失败 (${xhr.status}): ${xhr.responseText}`));
+                    }
+                };
+
+                xhr.onerror = () => reject(new Error('网络错误，请检查服务器连接'));
+                
+                xhr.open('POST', `/upload?zone=${zone}&name=${encodeURIComponent(name)}`, true);
+                xhr.send(file);
+            });
+        }
+
+        radioDir.addEventListener('change', updateUI);
+        radioZip.addEventListener('change', updateUI);
+        radioFile.addEventListener('change', updateUI);
+        zoneSelect.addEventListener('change', () => {
+            if (radioFile.checked) {
+                updateUI();
+            }
+        });
+
+        updateUI();
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const files = fileInput.files;
+            if (!files.length) return;
+
+            submitBtn.disabled = true;
+            progressArea.style.display = 'block';
+            progressBar.style.width = '0%';
+            
+            try {
+                const zone = zoneSelect.value;
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const name = file.webkitRelativePath || file.name;
+                    await uploadFile(file, zone, name);
+                }
+
+                showNotification('上传成功！请让管理员在游戏内输入 /mmdsync');
+                uploadForm.reset();
+                updateUI();
+            } catch (err) {
+                showNotification(err.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                setTimeout(() => {
+                    progressArea.style.display = 'none';
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>

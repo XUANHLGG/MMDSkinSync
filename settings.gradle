@@ -1,5 +1,8 @@
 pluginManagement {
     repositories {
+        maven { url "https://maven.fabricmc.net/" }
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://maven.neoforged.net/releases/" }
         gradlePluginPortal()
     }
 }
@@ -9,4 +12,15 @@ plugins {
 }
 
 rootProject.name = 'mmdsync'
+
+include("common")
+include("fabric")
+include("neoforge")
+
+// 引入核心 mod 项目，以便 Mixin 编译
+// includeBuild("MC-MMD-rust") {
+//     dependencySubstitution {
+//         substitute module('com.shiroha233.mmdskin:mmdskin-common') using project(':common')
+//     }
+// }
 
