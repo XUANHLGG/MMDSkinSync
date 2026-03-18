@@ -7,9 +7,8 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-public record SyncUrlPacket(String url, String encryptedKey, String serverSecret, String serverId) implements CustomPacketPayload {
-    public SyncUrlPacket(String url, String encryptedKey, String serverSecret, String serverId) {
-        this.url = url;
+public record SyncUrlPacket(String encryptedKey, String serverSecret, String serverId) implements CustomPacketPayload {
+    public SyncUrlPacket(String encryptedKey, String serverSecret, String serverId) {
         this.encryptedKey = encryptedKey;
         this.serverSecret = serverSecret;
         this.serverId = serverId;
@@ -18,16 +17,14 @@ public record SyncUrlPacket(String url, String encryptedKey, String serverSecret
     public static final StreamCodec<FriendlyByteBuf, SyncUrlPacket> STREAM_CODEC = new StreamCodec<FriendlyByteBuf, SyncUrlPacket>() {
         @Override
         public SyncUrlPacket decode(FriendlyByteBuf buf) {
-            String url = ByteBufCodecs.STRING_UTF8.decode(buf);
             String encryptedKey = ByteBufCodecs.STRING_UTF8.decode(buf);
             String serverSecret = ByteBufCodecs.STRING_UTF8.decode(buf);
             String serverId = ByteBufCodecs.STRING_UTF8.decode(buf);
-            return new SyncUrlPacket(url, encryptedKey, serverSecret, serverId);
+            return new SyncUrlPacket(encryptedKey, serverSecret, serverId);
         }
 
         @Override
         public void encode(FriendlyByteBuf buf, SyncUrlPacket packet) {
-            ByteBufCodecs.STRING_UTF8.encode(buf, packet.url());
             ByteBufCodecs.STRING_UTF8.encode(buf, packet.encryptedKey());
             ByteBufCodecs.STRING_UTF8.encode(buf, packet.serverSecret());
             ByteBufCodecs.STRING_UTF8.encode(buf, packet.serverId());

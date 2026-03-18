@@ -1,15 +1,21 @@
 package com.opdent.mmdskin.sync.fabric;
 
 import com.opdent.mmdskin.sync.MMDSyncMod;
+import com.opdent.mmdskin.sync.network.resource.ResourceTransferClientManager;
+import com.opdent.mmdskin.sync.network.resource.ResourceTransferPacket;
 import com.tendoarisu.mmdskin.sync.MMDSync;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import com.opdent.mmdskin.sync.SyncManager;
 import com.tendoarisu.mmdskin.sync.util.CryptoUtils;
 import com.opdent.mmdskin.sync.network.HandshakePacket;
 import com.tendoarisu.mmdskin.sync.util.MMDSyncNativeBridge;
+import net.minecraft.client.player.LocalPlayer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class MMDSyncModFabricClient implements ClientModInitializer {
     private static final AtomicBoolean nativeFingerprintLogged = new AtomicBoolean(false);
@@ -17,13 +23,34 @@ public class MMDSyncModFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         MMDSync.initClient(); // 调用 Common 初始化 (但 ClientGameEvents 被我们禁用了)
+        bindUpstreamModelSelectionNetworking();
+
+        try {
+            PayloadTypeRegistry.playS2C().register(com.opdent.mmdskin.sync.network.SyncUrlPacket.TYPE, com.opdent.mmdskin.sync.network.SyncUrlPacket.STREAM_CODEC);
+        } catch (IllegalArgumentException ignored) {
+        }
+        try {
+            PayloadTypeRegistry.playS2C().register(ResourceTransferPacket.TYPE, ResourceTransferPacket.STREAM_CODEC);
+        } catch (IllegalArgumentException ignored) {
+        }
+        try {
+            PayloadTypeRegistry.playC2S().register(HandshakePacket.TYPE, HandshakePacket.STREAM_CODEC);
+        } catch (IllegalArgumentException ignored) {
+        }
+        try {
+            PayloadTypeRegistry.playC2S().register(ResourceTransferPacket.TYPE, ResourceTransferPacket.STREAM_CODEC);
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        ClientPlayNetworking.registerGlobalReceiver(ResourceTransferPacket.TYPE, (payload, context) -> {
+            context.client().execute(() -> ResourceTransferClientManager.acceptPacket(payload.toResourcePacket()));
+        });
         
         // 1. 注册 Fabric 原生网络包接收器 (S2C SyncUrlPacket)
         ClientPlayNetworking.registerGlobalReceiver(
             com.opdent.mmdskin.sync.network.SyncUrlPacket.TYPE, 
             (payload, context) -> {
                 context.client().execute(() -> {
-                    SyncManager.setServerUrlOverride(payload.url());
                     SyncManager.setServerSecret(payload.serverSecret());
                     SyncManager.setCurrentServerId(payload.serverId());
 
@@ -31,17 +58,12 @@ public class MMDSyncModFabricClient implements ClientModInitializer {
                         CryptoUtils.installSessionMaterial(payload.encryptedKey(), SyncManager.getLastServerSecret());
                         if (CryptoUtils.hasSessionMaterial()) {
                             SyncManager.onSessionKeyReady();
-                            if (payload.url() != null && !payload.url().isEmpty()) {
-                                SyncManager.startSync();
-                            }
-                        } else {
-                            MMDSyncMod.LOGGER.warn("客户端处理握手响应后会话材料仍未就绪。");
+                            SyncManager.startSync();
                         }
                     } else {
-                        if (payload.serverSecret() != null && payload.serverSecret().contains("|")) {
+                        if (payload.serverSecret() != null && !payload.serverSecret().isEmpty()) {
                             trySendOrScheduleHandshake(context.client());
-                        }
-                        if ((payload.serverSecret() == null || !payload.serverSecret().contains("|")) && payload.url() != null && !payload.url().isEmpty()) {
+                        } else {
                             SyncManager.startSync();
                         }
                     }
@@ -74,7 +96,6 @@ public class MMDSyncModFabricClient implements ClientModInitializer {
 
         String handshakePem = CryptoUtils.getHandshakePem(challenge == null ? "" : challenge, platform, hwid);
         if (handshakePem == null || handshakePem.isEmpty()) {
-            MMDSyncMod.LOGGER.warn("客户端生成握手公钥失败，已跳过本次握手发送。");
             return;
         }
 
@@ -128,6 +149,39 @@ public class MMDSyncModFabricClient implements ClientModInitializer {
         try {
             MMDSyncNativeBridge.getLibraryHash();
         } catch (Throwable ignored) {
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void bindUpstreamModelSelectionNetworking() {
+        try {
+            Class<?> selectorHandlerClass = Class.forName("com.shiroha.mmdskin.ui.network.ModelSelectorNetworkHandler");
+            Object selectorHandler = selectorHandlerClass.getMethod("getInstance").invoke(null);
+            java.lang.reflect.Method setNetworkSender = selectorHandlerClass.getMethod("setNetworkSender", Consumer.class);
+            setNetworkSender.invoke(selectorHandler, (Consumer<String>) modelName -> sendModelSelectToServer(modelName));
+
+            Class<?> syncManagerClass = Class.forName("com.shiroha.mmdskin.ui.network.PlayerModelSyncManager");
+            java.lang.reflect.Method setBroadcaster = syncManagerClass.getMethod("setNetworkBroadcaster", BiConsumer.class);
+            setBroadcaster.invoke(null, (BiConsumer<java.util.UUID, String>) (playerUUID, modelName) -> sendModelSelectToServer(playerUUID, modelName));
+        } catch (Throwable e) {
+            MMDSyncMod.LOGGER.warn("绑定上游模型选择网络发送器失败(Fabric): {}", e.toString());
+        }
+    }
+
+    private void sendModelSelectToServer(String modelName) {
+        LocalPlayer player = net.minecraft.client.Minecraft.getInstance().player;
+        if (player != null) {
+            sendModelSelectToServer(player.getUUID(), modelName);
+        }
+    }
+
+    private void sendModelSelectToServer(java.util.UUID playerUUID, String modelName) {
+        try {
+            Class<?> packClass = Class.forName("com.shiroha.mmdskin.fabric.network.MmdSkinNetworkPack");
+            java.lang.reflect.Method sendMethod = packClass.getMethod("sendToServer", int.class, java.util.UUID.class, String.class);
+            sendMethod.invoke(null, 3, playerUUID, modelName);
+        } catch (Throwable e) {
+            MMDSyncMod.LOGGER.warn("发送上游模型选择包失败(Fabric): {}", e.toString());
         }
     }
 }

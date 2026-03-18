@@ -17,12 +17,8 @@ public class Config {
     private static final Path CONFIG_FILE = Platform.getConfigFolder().resolve("mmdsync-common.toml");
 
     // 配置项
-    public static String SERVER_URL = "";
-    public static boolean ENABLE_SERVER = false;
-    public static int SERVER_PORT = 5000;
-    public static double MAX_BANDWIDTH_MBPS = 0.0;
-    public static boolean ENABLE_GZIP = true;
     public static String SERVER_SECRET = "";
+    public static long RESOURCE_PACKET_WAIT_TIMEOUT_SECONDS = 0L;
 
     public static void load() {
         if (!Files.exists(CONFIG_FILE)) {
@@ -34,6 +30,7 @@ public class Config {
 
         try {
             List<String> lines = Files.readAllLines(CONFIG_FILE, StandardCharsets.UTF_8);
+            boolean foundTimeoutConfig = false;
             for (String line : lines) {
                 line = line.trim();
                 if (line.isEmpty() || line.startsWith("#") || line.startsWith("[")) continue;
@@ -49,16 +46,14 @@ public class Config {
                     }
 
                     switch (key) {
-                        case "serverUrl" -> SERVER_URL = value;
-                        case "enableServer" -> ENABLE_SERVER = Boolean.parseBoolean(value);
-                        case "serverPort" -> {
-                            try { SERVER_PORT = Integer.parseInt(value); } catch (NumberFormatException ignored) {}
-                        }
-                        case "maxBandwidthMbps" -> {
-                            try { MAX_BANDWIDTH_MBPS = Double.parseDouble(value); } catch (NumberFormatException ignored) {}
-                        }
-                        case "enableGzip" -> ENABLE_GZIP = Boolean.parseBoolean(value);
                         case "serverSecret" -> SERVER_SECRET = value;
+                        case "resourcePacketWaitTimeoutSeconds" -> {
+                            try {
+                                RESOURCE_PACKET_WAIT_TIMEOUT_SECONDS = Long.parseLong(value);
+                                foundTimeoutConfig = true;
+                            } catch (NumberFormatException ignored) {
+                            }
+                        }
                     }
                 }
             }
@@ -66,6 +61,8 @@ public class Config {
             // 如果读取后 Secret 仍为空（旧配置文件升级），则补全
             if (SERVER_SECRET.isEmpty()) {
                 SERVER_SECRET = java.util.UUID.randomUUID().toString().replace("-", "");
+                save();
+            } else if (!foundTimeoutConfig) {
                 save();
             }
         } catch (IOException e) {
@@ -78,23 +75,13 @@ public class Config {
         lines.add("# MMDSync 配置文件");
         lines.add("");
         lines.add("[general]");
-        lines.add("# 模型同步服务器地址 (作为服务端运行时的下发地址，客户端将优先使用服务器下发或自动检测的地址)");
-        lines.add("serverUrl = " + SERVER_URL);
-        lines.add("");
         lines.add("# 服务器唯一私密盐 (用于加固加密流程，请勿公开)");
         lines.add("serverSecret = " + SERVER_SECRET);
         lines.add("");
-        lines.add("# 是否开启内置同步服务器");
-        lines.add("enableServer = " + ENABLE_SERVER);
-        lines.add("");
-        lines.add("# 内置服务器端口");
-        lines.add("serverPort = " + SERVER_PORT);
-        lines.add("");
-        lines.add("# 内置服务器最大下行带宽 (Mbps)，0 为不限制");
-        lines.add("maxBandwidthMbps = " + MAX_BANDWIDTH_MBPS);
-        lines.add("");
-        lines.add("# 是否启用 GZIP 压缩以节省带宽");
-        lines.add("enableGzip = " + ENABLE_GZIP);
+        lines.add("# 资源分块等待超时(秒)");
+        lines.add("# 0 或负数 = 无限等待直到文件传完");
+        lines.add("# 正数 = 单个文件在该时间内未传完则视为失败");
+        lines.add("resourcePacketWaitTimeoutSeconds = " + RESOURCE_PACKET_WAIT_TIMEOUT_SECONDS);
 
         try {
             Files.write(CONFIG_FILE, lines, StandardCharsets.UTF_8);

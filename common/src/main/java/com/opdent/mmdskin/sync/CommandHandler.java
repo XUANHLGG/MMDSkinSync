@@ -2,7 +2,6 @@ package com.opdent.mmdskin.sync;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.tendoarisu.mmdskin.sync.Config;
-import com.tendoarisu.mmdskin.sync.EmbeddedServer;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -35,10 +34,8 @@ public class CommandHandler {
                     context.getSource().sendSuccess(() -> Component.literal("§a正在重新加载配置并同步到所有玩家..."), true);
 
                     Config.load();
-                    EmbeddedServer.stop();
-                    EmbeddedServer.start();
 
-                    return executeSync(context.getSource(), "§a配置重载完成，内置服务器已重启。");
+                    return executeSync(context.getSource(), "§a配置重载完成，已重新下发资源握手。");
                 })
             )
         );

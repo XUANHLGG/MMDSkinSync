@@ -4,33 +4,49 @@ import com.opdent.mmdskin.sync.MMDSyncMod;
 import com.shiroha.mmdskin.NativeFunc;
 import com.tendoarisu.mmdskin.sync.util.MMDSyncNativeBridge;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-@Mixin(targets = "com.shiroha.mmdskin.ui.selector.ModelSettingsScreen", remap = false)
+/**
+ * 上游 1.0.4+：ModelSettingsScreen 不再直接调用 NativeFunc 应用配置，
+ * 相关 native 调用被下沉到了 DefaultModelSettingsRuntimeGateway#applyConfigIfSelected。
+ */
+@Pseudo
+@Mixin(targets = "com.shiroha.mmdskin.ui.selector.adapter.DefaultModelSettingsRuntimeGateway", remap = false)
 public abstract class MixinModelSettingsScreen {
 
     @Redirect(
-            method = "applyConfigToModel",
-            at = @At(value = "INVOKE", target = "Lcom/shiroha/mmdskin/NativeFunc;SetEyeTrackingEnabled(JZ)V")
+            method = "applyConfigIfSelected",
+            at = @At(value = "INVOKE", target = "Lcom/shiroha/mmdskin/NativeFunc;SetEyeTrackingEnabled(JZ)V"),
+            remap = false
     )
-    private void guardSetEyeTrackingEnabled(NativeFunc instance, long modelHandle, boolean enabled) {
-        if (modelHandle != 0L && !MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
+    private static void guardSetEyeTrackingEnabled(NativeFunc instance, long modelHandle, boolean enabled) {
+        if (!MMDSyncNativeBridge.isBridgeHandle(modelHandle)) {
+            instance.SetEyeTrackingEnabled(modelHandle, enabled);
+            return;
+        }
+        if (!MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
             MMDSyncMod.LOGGER.warn("阻止使用过期加密模型句柄设置眼球追踪: model={}, enabled={}", modelHandle, enabled);
             return;
         }
-        instance.SetEyeTrackingEnabled(modelHandle, enabled);
+        MMDSyncNativeBridge.setEyeTrackingEnabled(modelHandle, enabled);
     }
 
     @Redirect(
-            method = "applyConfigToModel",
-            at = @At(value = "INVOKE", target = "Lcom/shiroha/mmdskin/NativeFunc;SetEyeMaxAngle(JF)V")
+            method = "applyConfigIfSelected",
+            at = @At(value = "INVOKE", target = "Lcom/shiroha/mmdskin/NativeFunc;SetEyeMaxAngle(JF)V"),
+            remap = false
     )
-    private void guardSetEyeMaxAngle(NativeFunc instance, long modelHandle, float angle) {
-        if (modelHandle != 0L && !MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
+    private static void guardSetEyeMaxAngle(NativeFunc instance, long modelHandle, float angle) {
+        if (!MMDSyncNativeBridge.isBridgeHandle(modelHandle)) {
+            instance.SetEyeMaxAngle(modelHandle, angle);
+            return;
+        }
+        if (!MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
             MMDSyncMod.LOGGER.warn("阻止使用过期加密模型句柄设置眼球角度: model={}, angle={}", modelHandle, angle);
             return;
         }
-        instance.SetEyeMaxAngle(modelHandle, angle);
+        MMDSyncNativeBridge.setEyeMaxAngle(modelHandle, angle);
     }
 }

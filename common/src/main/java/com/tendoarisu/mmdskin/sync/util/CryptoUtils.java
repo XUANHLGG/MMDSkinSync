@@ -32,13 +32,19 @@ public class CryptoUtils {
      * @param platform 平台标识，如 "windows-x64", "linux-x64"
      */
     public static byte[] getNativeResourceHash(String platform) {
-        String resourcePath = "/natives/" + platform + "/";
+        if (platform == null || platform.isEmpty()) return null;
+        String fileName;
         if (platform.startsWith("windows")) {
-            resourcePath += "mmdsync_bridge.dll";
+            fileName = "mmdsync_bridge.dll";
+        } else if (platform.startsWith("macos")) {
+            fileName = "libmmdsync_bridge.dylib";
+        } else if (platform.startsWith("linux")) {
+            fileName = "libmmdsync_bridge.so";
         } else {
-            resourcePath += "libmmdsync_bridge.so";
+            return null;
         }
 
+        String resourcePath = "/natives/" + platform + "/" + fileName;
         try (InputStream is = CryptoUtils.class.getResourceAsStream(resourcePath)) {
             if (is == null) return null;
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -64,7 +70,7 @@ public class CryptoUtils {
             String safeHwid = (clientHwid != null && !clientHwid.isEmpty()) ? clientHwid : "fallback-hwid";
             byte[] targetHash = (targetPlatform != null) ? getNativeResourceHash(targetPlatform) : null;
 
-            return MMDSyncNativeBridge.deriveHandshakePem(serverSecret, targetHash != null ? targetHash : new byte[0], safeHwid);
+            return MMDSyncNativeBridge.deriveHandshakePem(serverSecret == null ? "" : serverSecret, targetHash != null ? targetHash : new byte[0], safeHwid);
         } catch (Throwable e) {
             MMDSyncMod.LOGGER.error("获取客户端握手材料失败", e);
             return "";
@@ -120,13 +126,13 @@ public class CryptoUtils {
             return true;
         }
 
-        long deadline = System.currentTimeMillis() + Math.max(0L, timeoutMs);
+        long deadline = timeoutMs > 0 ? System.currentTimeMillis() + timeoutMs : Long.MAX_VALUE;
         while (System.currentTimeMillis() < deadline) {
             if (hasSessionMaterial()) {
                 return true;
             }
             try {
-                Thread.sleep(25L);
+                Thread.sleep(100L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return hasSessionMaterial();

@@ -1,11 +1,15 @@
 package com.tendoarisu.mmdskin.sync.util;
 
+import java.nio.ByteBuffer;
+
 /**
  * 辅助 Native 库的桥接类
  * 仅用于 MMDSync 内部，负责从内存字节数组加载模型和贴图
  * 此库为非开源部分（或独立编译），不影响核心 Mod 的开源协议
  */
 public class MMDSyncNativeBridge {
+    private static final long BRIDGE_HANDLE_MASK = 1L << 62;
+
     static {
         // 使用多平台加载器加载库
         MMDSyncNativeLoader.load();
@@ -90,19 +94,19 @@ public class MMDSyncNativeBridge {
 
     /**
      * 校验模型句柄是否仍属于当前 Native 会话代际。
-     * 对于非 MMDSync bridge 跟踪的句柄，Native 侧会按“允许通过”处理。
+     * 对于非 MMDSync bridge 跟踪的句柄，Native 侧会按“拒绝通过”处理。
      */
     public static native boolean isModelHandleValid(long handle);
 
     /**
      * 校验动画句柄是否仍属于当前 Native 会话代际。
-     * 对于非 MMDSync bridge 跟踪的句柄，Native 侧会按“允许通过”处理。
+     * 对于非 MMDSync bridge 跟踪的句柄，Native 侧会按“拒绝通过”处理。
      */
     public static native boolean isAnimationHandleValid(long handle);
 
     /**
      * 校验贴图句柄是否仍属于当前 Native 会话代际。
-     * 对于非 MMDSync bridge 跟踪的句柄，Native 侧会按“允许通过”处理。
+     * 对于非 MMDSync bridge 跟踪的句柄，Native 侧会按“拒绝通过”处理。
      */
     public static native boolean isTextureHandleValid(long handle);
 
@@ -130,8 +134,6 @@ public class MMDSyncNativeBridge {
      */
     public static native String getClassHash(byte[] classBytes);
 
-    // 已移除冗余的 rsaEncrypt，服务器端直接用 Java 实现，客户端仅保留解密逻辑在 Native 以绑定 HWID
-
     /**
      * 使用 AES-GCM 加密模型数据
      * @param data 原始模型数据
@@ -147,4 +149,102 @@ public class MMDSyncNativeBridge {
      * @return 原始模型数据
      */
     public static native byte[] aesDecrypt(byte[] encryptedData, byte[] aesKey);
+
+    // --- 以下为代理主 Mod GPU Skinning 所需的接口 ---
+
+    public static native long getVertexCount(long model);
+    public static native long getIndexElementSize(long model);
+    public static native long getIndexCount(long model);
+    public static native long getIndices(long model);
+    public static native int copyDataToByteBuffer(ByteBuffer buffer, long data, long size);
+    public static native int copyOriginalPositionsToBuffer(long model, ByteBuffer buffer, int vertexCount);
+    public static native int copyOriginalNormalsToBuffer(long model, ByteBuffer buffer, int vertexCount);
+    public static native long getUVs(long model);
+    public static native int copyBoneIndicesToBuffer(long model, ByteBuffer buffer, int vertexCount);
+    public static native int copyBoneWeightsToBuffer(long model, ByteBuffer buffer, int vertexCount);
+    public static native int getBoneCount(long model);
+    public static native String getBoneNames(long model);
+    public static native int copyBonePositionsToBuffer(long model, ByteBuffer buffer);
+    public static native int copyRealtimeUVsToBuffer(long model, ByteBuffer buffer);
+    public static native int copySkinningMatricesToBuffer(long model, ByteBuffer buffer);
+    public static native void updateAnimationOnly(long model, float deltaTime);
+    public static native long getMaterialCount(long model);
+    public static native String getMaterialTex(long model, long pos);
+    public static native long getSubMeshCount(long model);
+    public static native int batchGetSubMeshData(long model, ByteBuffer buffer);
+    public static native void deleteModel(long model);
+
+    // --- 动画桥接 ---
+    public static native void changeModelAnim(long model, long anim, long layer);
+    public static native void transitionLayerTo(long model, long anim, long layer, float transitionTime);
+    public static native void setLayerLoop(long model, long layer, boolean loop);
+    public static native void resetPhysics(long model);
+
+    // --- 第一人称桥接 ---
+    public static native void setFirstPersonMode(long model, boolean enabled);
+    public static native boolean isFirstPersonMode(long model);
+    public static native void getEyeBonePosition(long model, float[] out);
+
+    // --- 头部/眼部桥接 ---
+    public static native void setHeadAngle(long model, float headX, float headY, float headZ, boolean isHeadInSync);
+    public static native void setEyeAngle(long model, float eyeX, float eyeY);
+    public static native void setEyeMaxAngle(long model, float maxAngle);
+    public static native void setEyeTrackingEnabled(long model, boolean enabled);
+    public static native void setAutoBlinkEnabled(long model, boolean enabled);
+    public static native void seekLayer(long model, long layer, float frame);
+
+    // --- 动画/镜头桥接 ---
+    public static native void deleteAnimation(long anim);
+    public static native boolean hasCameraData(long anim);
+    public static native float getAnimMaxFrame(long anim);
+    public static native void getCameraTransform(long anim, float frame, ByteBuffer buffer);
+
+    // --- 场景模型桥接 ---
+    public static native void setModelPositionAndYaw(long model, float posX, float posY, float posZ, float yaw);
+
+    // --- VR 桥接 ---
+    public static native void setVRTrackingData(long model, float[] trackingData);
+    public static native void setVREnabled(long model, boolean enabled);
+    public static native void setVRIKParams(long model, float armIKStrength);
+
+    // --- 材质可见性桥接 ---
+    public static native boolean isMaterialVisible(long model, int index);
+    public static native void setMaterialVisible(long model, int index, boolean visible);
+    public static native void setAllMaterialsVisible(long model, boolean visible);
+    public static native String getMaterialName(long model, int index);
+
+    // --- Morph / VPD 桥接 ---
+    public static native void resetAllMorphs(long model);
+    public static native int applyVpdMorph(long model, String filePath);
+
+    // --- 贴图桥接 ---
+    public static native int getTextureX(long tex);
+    public static native int getTextureY(long tex);
+    public static native long getTextureData(long tex);
+    public static native boolean textureHasAlpha(long tex);
+    public static native void deleteTexture(long tex);
+
+    /**
+     * 判断句柄是否为 Bridge 句柄 (仅根据 Java 侧 tag 位判断)。
+     */
+    public static boolean isBridgeHandle(long handle) {
+        return (handle & BRIDGE_HANDLE_MASK) != 0;
+    }
+
+    /**
+     * 为 Bridge 句柄打 tag，避免和上游 Native 句柄混用。
+     */
+    public static long tagBridgeHandle(long handle) {
+        if (handle == 0L) {
+            return 0L;
+        }
+        return handle | BRIDGE_HANDLE_MASK;
+    }
+
+    /**
+     * 去掉 Bridge 句柄 tag，便于桥接层内部继续使用原始句柄。
+     */
+    public static long stripBridgeHandle(long handle) {
+        return handle & ~BRIDGE_HANDLE_MASK;
+    }
 }

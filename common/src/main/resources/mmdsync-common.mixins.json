@@ -5,17 +5,30 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "mmdsync-common-refmap.json",
   "mixins": [
-    "MixinMMDModelNativeRender",
+    "MixinGui",
     "MixinMMDModelManager",
+    "MixinMMDModelGpuSkinning",
+    "MixinMMDModelGpuSkinningUploader",
+    "MixinMMDModelGpuSkinningRenderer",
     "MixinMMDTextureManager",
     "MixinMMDAnimManager",
     "MixinAbstractMMDModel",
+    "MixinFirstPersonManager",
+    "MixinEyeTrackingHelper",
+    "MixinHeadAngleHelper",
+    "MixinMMDCameraController",
+    "MixinMMDCameraData",
+    "MixinSceneModelManager",
+    "MixinVRBoneDriver",
+    "MixinMmdSkinApi",
     "MixinMaterialVisibilityScreen",
+    "MixinMaterialVisibilityGateway",
     "MixinMorphWheelScreen",
     "MixinMorphSyncHelper",
     "MixinModelSettingsScreen",
-    "MixinStageAnimSyncHelper",
-    "MixinModelSelectorScreen"
+    "MixinStageAnimSyncHelperNew",
+    "MixinStagePack",
+    "ModelCardEntryAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

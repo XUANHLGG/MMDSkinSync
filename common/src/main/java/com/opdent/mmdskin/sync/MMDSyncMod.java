@@ -3,7 +3,6 @@ package com.opdent.mmdskin.sync;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 import com.tendoarisu.mmdskin.sync.Config;
-import com.tendoarisu.mmdskin.sync.EmbeddedServer;
 import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.networking.NetworkManager;
@@ -16,9 +15,6 @@ public class MMDSyncMod {
     public static void init() {
         // 加载自定义配置
         Config.load();
-        
-        // 启动内置服务器
-        EmbeddedServer.start();
         
         // 注册网络包
         registerPayloads();
@@ -38,7 +34,7 @@ public class MMDSyncMod {
 
     public static void registerPayloads() {
         // 在 Common 层不再进行网络包注册
-        // 注册逻辑已完全下沉到 Fabric/NeoForge 平台层
+        // 注册逻辑完全下沉到 Fabric/NeoForge 平台层
         // 以避免 Architectury 可能存在的 Codec 缓存或版本不一致问题
     }
 
