@@ -3,18 +3,13 @@ architectury {
 }
 
 loom {
-    // accessTransformer = file("src/main/resources/META-INF/accesstransformer.cfg")
 }
 
 dependencies {
-    // We depend on architectury-api at runtime, but not the platform-specific parts
     modImplementation "dev.architectury:architectury:${project.architectury_version}"
-    
-    // 依赖核心模组以便编译 Mixin
-    modCompileOnly files("../libs/mmdskin-common-1.0.3-1.21.1.jar")
+    modCompileOnly files("../libs/mmdskin-common-1.0.4-1.21.1.jar")
 }
 
-// 排除编译时使用的 Stub 类，防止运行时冲突
 jar {
     exclude 'com/shiroha/mmdskin/**'
 }

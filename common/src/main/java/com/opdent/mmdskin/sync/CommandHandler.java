@@ -2,7 +2,6 @@ package com.opdent.mmdskin.sync;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.tendoarisu.mmdskin.sync.Config;
-import com.tendoarisu.mmdskin.sync.EmbeddedServer;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -14,12 +13,8 @@ import java.util.UUID;
 public class CommandHandler {
     private static byte[] serverSyncKey = null;
 
-    /**
-     * 获取或生成服务器同步 AES 密钥
-     */
     public static synchronized byte[] getServerSyncKey() {
         if (serverSyncKey == null) {
-            // 生成一个随机的 32 字节 AES 密钥
             serverSyncKey = new byte[32];
             new java.security.SecureRandom().nextBytes(serverSyncKey);
         }
@@ -35,10 +30,8 @@ public class CommandHandler {
                     context.getSource().sendSuccess(() -> Component.literal("§a正在重新加载配置并同步到所有玩家..."), true);
 
                     Config.load();
-                    EmbeddedServer.stop();
-                    EmbeddedServer.start();
 
-                    return executeSync(context.getSource(), "§a配置重载完成，内置服务器已重启。");
+                    return executeSync(context.getSource(), "§a配置重载完成，已重新下发资源握手。");
                 })
             )
         );
@@ -52,8 +45,12 @@ public class CommandHandler {
         source.sendSuccess(() -> Component.literal("§a正在全服同步模型..."), true);
         try {
             if (!source.getLevel().isClientSide) {
+                if (MMDSyncServerGuards.isPureSingleplayerServer(source.getServer())) {
+                    source.sendSuccess(() -> Component.literal("§e当前为纯单人世界，本地模型不需要 MMDSync 同步。"), true);
+                    return 1;
+                }
                 for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
-                    NetworkManager.sendToPlayer(player, ServerAuthManager.buildChallengePacket(player));
+                    MMDSyncNetworking.sendSyncUrlPacket(player, ServerAuthManager.buildChallengePacket(player));
                 }
                 if (successPrefix != null && !successPrefix.isEmpty()) {
                     source.sendSuccess(() -> Component.literal(successPrefix), true);

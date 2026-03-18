@@ -23,6 +23,10 @@
     {
       "config": "mmdsync-common.mixins.json",
       "environment": "client"
+    },
+    {
+      "config": "mmdsync-fabric.mixins.json",
+      "environment": "client"
     }
   ],
   "depends": {

@@ -24,23 +24,8 @@ runs
 run-data
 repo
 
-# user requested exclusions
-upstream/
-
 # 乱七八糟的东西 (其他子项目/目录/临时文件)
 .architectury-transformer/
-ImageFrame/
 MmdSkin-Bukkit/
-MMDSkinSync/
-tools/
 MC-MMD-rust/
 .ai_progress.md
-build_output.txt
-build_v1214.txt
-_fusion_subset_chars.txt
-_fusion_subset_min.woff2
-_fusion_subset.woff2
-_web_font_source.txt
-
-# 排除 gitignore 自身
-.gitignore

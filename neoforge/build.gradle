@@ -2,6 +2,10 @@ plugins {
     id "com.gradleup.shadow"
 }
 
+base {
+    archivesName = "${project.mod_id}-neoforge-${project.minecraft_version}"
+}
+
 architectury {
     platformSetupLoomIde()
     neoForge()

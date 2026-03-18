@@ -9,10 +9,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
-/**
- * MMDSync 辅助原生库加载器
- * 仿照核心 Mod 的 NativeLibraryLoader 实现，支持多平台加载。
- */
 public final class MMDSyncNativeLoader {
     private static final Logger logger = LogManager.getLogger();
     private static volatile boolean loaded;
@@ -27,7 +23,6 @@ public final class MMDSyncNativeLoader {
         String arch = System.getProperty("os.arch").toLowerCase();
         isArm64 = arch.contains("aarch64") || arch.contains("arm64");
 
-        // 简化的 Android 检测逻辑（核心 Mod 已有详细检测，此处主要用于路径选择）
         boolean androidDetected = false;
         String[] launcherEnvKeys = { "FCL_NATIVEDIR", "POJAV_NATIVEDIR", "MOD_ANDROID_RUNTIME" };
         for (String key : launcherEnvKeys) {
@@ -51,10 +46,6 @@ public final class MMDSyncNativeLoader {
         }
     }
 
-    /**
-     * 获取当前平台的标识符
-     * 用于握手时告知服务端需要哪个平台的官方哈希
-     */
     public static String getPlatformIdentifier() {
         String os = System.getProperty("os.name").toLowerCase();
         String arch = System.getProperty("os.arch").toLowerCase();
@@ -110,12 +101,10 @@ public final class MMDSyncNativeLoader {
     }
 
     private static void loadAndroid() {
-        // Android 下通常 lib 已经由启动器放置在特定目录，或者需要解压到私有目录
         String resourcePath = "/natives/android-arm64/libmmdsync_bridge.so";
         String fileName = "libmmdsync_bridge.so";
         
         try {
-            // 优先尝试从内置资源解压到游戏目录的 natives 文件夹
             File extracted = extractLibrary(resourcePath, fileName);
             if (extracted != null) {
                 System.load(extracted.getAbsolutePath());

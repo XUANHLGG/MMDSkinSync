@@ -2,6 +2,10 @@ plugins {
     id "com.gradleup.shadow"
 }
 
+base {
+    archivesName = "${project.mod_id}-fabric-${project.minecraft_version}"
+}
+
 architectury {
     platformSetupLoomIde()
     fabric()
@@ -9,7 +13,7 @@ architectury {
 
 configurations {
     common
-    shadowCommon // Don't use shadow from the shadow plugin because we don't want to bundle Architectury API in a specific way
+    shadowCommon
     compileClasspath.extendsFrom common
     runtimeClasspath.extendsFrom common
     developmentFabric.extendsFrom common
@@ -27,8 +31,6 @@ dependencies {
 shadowJar {
     configurations = [project.configurations.shadowCommon]
     archiveClassifier = "dev-shadow"
-    
-    // 强制排除 Stub 类，防止类冲突
     exclude 'com/shiroha/mmdskin/NativeFunc.class'
     exclude 'com/shiroha/mmdskin/renderer/model/MMDModelNativeRender.class'
     exclude 'com/shiroha/mmdskin/renderer/resource/MMDTextureManager.class'

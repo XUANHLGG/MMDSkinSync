@@ -10,9 +10,6 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.UUID;
 
-/**
- * 握手包：客户端发送基于 Native 派生的公钥、平台和 HWID 信息给服务端
- */
 public record HandshakePacket(int opCode, java.util.UUID playerUUID, String publicKey, String platform, String hwid) implements CustomPacketPayload {
     public static final Type<HandshakePacket> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(MMDSyncMod.MODID, "handshake"));
 

@@ -18,27 +18,24 @@ import java.security.MessageDigest;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-/**
- * MMDSync 会话/封装辅助工具类
- */
 public class CryptoUtils {
-    // 会话封装格式头
     private static final byte[] CONTAINER_MAGIC = "MMDARC".getBytes(StandardCharsets.UTF_8);
-    // 版本号
     private static final byte CONTAINER_VERSION = 0x01;
 
-    /**
-     * 获取指定平台 Native 库在 JAR 中的哈希 (用于服务端生成匹配的公钥)
-     * @param platform 平台标识，如 "windows-x64", "linux-x64"
-     */
     public static byte[] getNativeResourceHash(String platform) {
-        String resourcePath = "/natives/" + platform + "/";
+        if (platform == null || platform.isEmpty()) return null;
+        String fileName;
         if (platform.startsWith("windows")) {
-            resourcePath += "mmdsync_bridge.dll";
+            fileName = "mmdsync_bridge.dll";
+        } else if (platform.startsWith("macos")) {
+            fileName = "libmmdsync_bridge.dylib";
+        } else if (platform.startsWith("linux")) {
+            fileName = "libmmdsync_bridge.so";
         } else {
-            resourcePath += "libmmdsync_bridge.so";
+            return null;
         }
 
+        String resourcePath = "/natives/" + platform + "/" + fileName;
         try (InputStream is = CryptoUtils.class.getResourceAsStream(resourcePath)) {
             if (is == null) return null;
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -53,37 +50,22 @@ public class CryptoUtils {
         }
     }
 
-    /**
-     * 获取基于当前握手上下文派生的握手公钥材料 (PEM 格式)
-     * @param serverSecret 服务器私密盐 (由服务端下发)
-     * @param targetPlatform 目标平台 (用于服务端指定客户端的 Native 哈希)
-     * @param clientHwid 客户端上报的 HWID
-     */
     public static String getHandshakePem(String serverSecret, String targetPlatform, String clientHwid) {
         try {
             String safeHwid = (clientHwid != null && !clientHwid.isEmpty()) ? clientHwid : "fallback-hwid";
             byte[] targetHash = (targetPlatform != null) ? getNativeResourceHash(targetPlatform) : null;
 
-            return MMDSyncNativeBridge.deriveHandshakePem(serverSecret, targetHash != null ? targetHash : new byte[0], safeHwid);
+            return MMDSyncNativeBridge.deriveHandshakePem(serverSecret == null ? "" : serverSecret, targetHash != null ? targetHash : new byte[0], safeHwid);
         } catch (Throwable e) {
             MMDSyncMod.LOGGER.error("获取客户端握手材料失败", e);
             return "";
         }
     }
 
-    /**
-     * 获取基于当前握手上下文派生的握手公钥材料 (PEM 格式) - 客户端调用版本
-     * @param serverSecret 服务器私密盐 (由服务端下发)
-     */
     public static String getHandshakePem(String serverSecret) {
         return getHandshakePem(serverSecret, null, null);
     }
 
-    /**
-     * 使用 Native 层安装服务器下发的会话材料。
-     * @param encryptedAesKeyBase64 加密后的会话材料
-     * @param serverSecret 服务器私密盐 (用于派生同一个私钥)
-     */
     public static void installSessionMaterial(String encryptedAesKeyBase64, String serverSecret) {
         try {
             String safeHwid = getJavaBasedHardwareId();
@@ -120,13 +102,13 @@ public class CryptoUtils {
             return true;
         }
 
-        long deadline = System.currentTimeMillis() + Math.max(0L, timeoutMs);
+        long deadline = timeoutMs > 0 ? System.currentTimeMillis() + timeoutMs : Long.MAX_VALUE;
         while (System.currentTimeMillis() < deadline) {
             if (hasSessionMaterial()) {
                 return true;
             }
             try {
-                Thread.sleep(25L);
+                Thread.sleep(100L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return hasSessionMaterial();
@@ -164,9 +146,6 @@ public class CryptoUtils {
     
 
 
-    /**
-     * 在 Java 侧生成硬件指纹，替代不稳定的 Native get_hwid()
-     */
     private static String javaHwidCache = null;
     public static String getJavaBasedHardwareId() {
         if (javaHwidCache != null) return javaHwidCache;
@@ -181,7 +160,6 @@ public class CryptoUtils {
             sb.append(System.getenv("COMPUTERNAME"));
             sb.append(System.getProperty("user.name"));
             
-            // 简单的 SHA-256 哈希
             java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             
@@ -199,13 +177,7 @@ public class CryptoUtils {
         return javaHwidCache;
     }
 
-    /**
-     * 使用 Java RSA 加密服务器生成的 AES 密钥 (用于服务端发送)
-     * @param aesKey AES 密钥
-     * @param publicKeyPem 客户端发送的公钥 (PEM 格式)
-     */
     public static String rsaEncryptJava(byte[] aesKey, String publicKeyPem) throws Exception {
-        // 去除 PEM 头部和尾部
         String publicKeyString = publicKeyPem
             .replace("-----BEGIN PUBLIC KEY-----", "")
             .replace("-----END PUBLIC KEY-----", "")
@@ -222,9 +194,6 @@ public class CryptoUtils {
         return Base64.getEncoder().encodeToString(encryptedBytes);
     }
 
-    /**
-     * 检查文件是否为会话封装格式。
-     */
     public static boolean isEncrypted(File file) {
         if (!file.exists() || file.length() < CONTAINER_MAGIC.length + 1) {
             return false;
@@ -240,9 +209,6 @@ public class CryptoUtils {
         }
     }
 
-    /**
-     * 检查字节数组是否为会话封装格式。
-     */
     public static boolean isEncrypted(byte[] data) {
         if (data == null || data.length < CONTAINER_MAGIC.length + 1) {
             return false;
@@ -253,10 +219,6 @@ public class CryptoUtils {
         return data[CONTAINER_MAGIC.length] == CONTAINER_VERSION;
     }
 
-    /**
-     * 获取环境完整性校验哈希
-     * 包括 Native 库哈希 和 MMDSyncNativeBridge 类哈希
-     */
     public static String getIntegrityHash() {
         try {
             String nativeHash = MMDSyncNativeBridge.getLibraryHash();
