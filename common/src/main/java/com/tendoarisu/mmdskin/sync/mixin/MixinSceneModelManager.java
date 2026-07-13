@@ -52,7 +52,7 @@ public class MixinSceneModelManager {
         return handle;
     }
 
-    @Redirect(method = {"renderScene", "checkPendingLoad"}, at = @At(value = "INVOKE", target = "Lcom/shiroha/mmdskin/NativeFunc;SetModelPositionAndYaw(JFFFF)V"), remap = false)
+    @Redirect(method = {"render", "checkPendingLoad"}, at = @At(value = "INVOKE", target = "Lcom/shiroha/mmdskin/NativeFunc;SetModelPositionAndYaw(JFFFF)V"), remap = false)
     private void redirectSetModelPositionAndYaw(NativeFunc instance, long modelHandle, float posX, float posY, float posZ, float yaw) {
         if (!MMDSyncNativeBridge.isBridgeHandle(modelHandle)) {
             instance.SetModelPositionAndYaw(modelHandle, posX, posY, posZ, yaw);

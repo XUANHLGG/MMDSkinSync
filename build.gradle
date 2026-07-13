@@ -1,261 +1,56 @@
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.security.MessageDigest
-
-/*
- * Pure composite-build aggregator. Architectury and Loom stay inside each
- * versioned included build and are intentionally not applied to this build.
- *
- * Architectury 3.4 applies Gradle's IDEA plugin. Gradle 8.11 cannot configure
- * both byte-frozen builds at once because their internal project names match.
- * settings.gradle therefore loads the one targeted by a single-version task.
- * buildAll runs each version in a separate wrapper process.
- */
-
-def aggregateTaskGroup = 'MMDSkinSync aggregate'
-def activeIncludedBuild = { String logicalName ->
-    gradle.extensions.extraProperties.has('activeVersionBuild')
-            && gradle.ext.activeVersionBuild == logicalName
-            ? gradle.includedBuild(logicalName)
-            : null
+plugins {
+    id "architectury-plugin" version "3.4.162"
+    id "dev.architectury.loom" version "1.9.436" apply false
+    id "com.gradleup.shadow" version "8.3.10" apply false
 }
 
-def includedBuildCommand = { String version, List<String> taskPaths ->
-    def versionDirectory = layout.projectDirectory.dir("versions/${version}").asFile
-    def wrapperName = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'gradlew.bat' : 'gradlew'
-    [new File(versionDirectory, wrapperName).absolutePath] + taskPaths
+architectury {
+    minecraft = project.minecraft_version
 }
 
-def runIncludedBuild = { String version, List<String> taskPaths ->
-    exec {
-        workingDir(layout.projectDirectory.dir("versions/${version}"))
-        commandLine(includedBuildCommand(version, taskPaths))
-        if (gradle.startParameter.rerunTasks) {
-            args('--rerun-tasks')
-        }
-        args('--console=plain')
+subprojects {
+    apply plugin: "dev.architectury.loom"
+    apply plugin: "architectury-plugin"
+
+    loom {
+        silentMojangMappingsLicense()
     }
-}
 
-def registerIncludedTask = { String taskName, String taskDescription, String logicalName, String version, List<String> taskPaths ->
-    tasks.register(taskName) {
-        group = aggregateTaskGroup
-        description = taskDescription
-        def includedBuild = activeIncludedBuild(logicalName)
-        if (includedBuild != null) {
-            dependsOn(taskPaths.collect { taskPath -> includedBuild.task(taskPath) })
-        } else {
-            doLast {
-                runIncludedBuild(version, taskPaths)
-            }
+    base {
+        archivesName = project.mod_id
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${project.minecraft_version}"
+        mappings loom.layered() {
+            officialMojangMappings()
+            parchment("org.parchmentmc.data:parchment-${project.parchment_minecraft_version}:${project.parchment_mappings_version}@zip")
         }
     }
 }
 
-registerIncludedTask(
-        'build1211',
-        'Builds common, Fabric, and NeoForge for Minecraft 1.21.1.',
-        'mc1211',
-        '1.21.1',
-        [':common:build', ':fabric:build', ':neoforge:build'])
-registerIncludedTask(
-        'build1214',
-        'Builds common and Fabric for Minecraft 1.21.4 (NeoForge is unsupported upstream).',
-        'mc1214',
-        '1.21.4',
-        [':common:build', ':fabric:build'])
+allprojects {
+    apply plugin: "java"
+    apply plugin: "maven-publish"
 
-tasks.register('buildAll') {
-    group = aggregateTaskGroup
-    description = 'Builds both isolated Minecraft versions.'
-    dependsOn('build1211', 'build1214')
-}
+    version = project.mod_version
+    group = project.mod_group_id
 
-registerIncludedTask(
-        'compile1211',
-        'Compiles common, Fabric, and NeoForge Java sources for Minecraft 1.21.1.',
-        'mc1211',
-        '1.21.1',
-        [':common:compileJava', ':fabric:compileJava', ':neoforge:compileJava'])
-registerIncludedTask(
-        'compile1214',
-        'Compiles common and Fabric Java sources for Minecraft 1.21.4 (NeoForge is unsupported upstream).',
-        'mc1214',
-        '1.21.4',
-        [':common:compileJava', ':fabric:compileJava'])
-
-registerIncludedTask('clean1211', 'Cleans only the Minecraft 1.21.1 included build.', 'mc1211', '1.21.1', [':clean'])
-registerIncludedTask('clean1214', 'Cleans only the Minecraft 1.21.4 included build.', 'mc1214', '1.21.4', [':clean'])
-
-tasks.register('clean', Delete) {
-    group = 'build'
-    description = 'Deletes only aggregate dist and report outputs; included builds are not cleaned.'
-    delete(
-            layout.projectDirectory.dir('dist'),
-            layout.projectDirectory.dir('reports'),
-            layout.buildDirectory.dir('reports'))
-}
-
-def upstreamEvidenceDirectory = layout.projectDirectory.dir('docs/upstream').asFile
-def snapshotManifest = new File(upstreamEvidenceDirectory, 'SNAPSHOT_MANIFEST.sha256')
-def snapshotEvidenceManifest = new File(upstreamEvidenceDirectory, 'EVIDENCE_MANIFEST.sha256')
-
-tasks.register('verifySnapshotManifest') {
-    group = aggregateTaskGroup
-    description = 'Verifies immutable upstream provenance files without comparing later-evolved version sources to their original snapshot.'
-    inputs.files(snapshotManifest, snapshotEvidenceManifest)
-
-    doLast {
-        if (!snapshotManifest.isFile()) {
-            throw new GradleException("Frozen snapshot manifest is missing: ${snapshotManifest}")
-        }
-        if (!snapshotEvidenceManifest.isFile()) {
-            throw new GradleException("Frozen evidence manifest is missing: ${snapshotEvidenceManifest}")
-        }
-
-        def failures = []
-        def seenPaths = new HashSet<String>()
-        int verified = 0
-        snapshotEvidenceManifest.eachLine('UTF-8') { String rawLine, int lineNumber ->
-            def line = rawLine.trim()
-            if (!line || line.startsWith('#')) return
-            def fields = line.split(/\s+/, 2)
-            if (fields.length != 2) {
-                failures << "line ${lineNumber}: expected <sha256> <relativePath>"
-                return
-            }
-            def expectedHash = fields[0].toLowerCase(Locale.ROOT)
-            def relativePath = fields[1].replace('\\', '/')
-            if (!(expectedHash ==~ /[0-9a-f]{64}/)) {
-                failures << "line ${lineNumber}: invalid SHA-256 '${fields[0]}'"
-                return
-            }
-            if (!seenPaths.add(relativePath)) {
-                failures << "line ${lineNumber}: duplicate evidence path ${relativePath}"
-                return
-            }
-            if (relativePath == 'EVIDENCE_MANIFEST.sha256') {
-                failures << "line ${lineNumber}: evidence manifest cannot hash itself"
-                return
-            }
-            def evidenceRoot = upstreamEvidenceDirectory.toPath().toAbsolutePath().normalize()
-            def evidenceFile = evidenceRoot.resolve(relativePath).normalize()
-            if (!evidenceFile.startsWith(evidenceRoot)) {
-                failures << "line ${lineNumber}: path escapes docs/upstream: ${relativePath}"
-                return
-            }
-            if (!Files.isRegularFile(evidenceFile)) {
-                failures << "missing frozen evidence: docs/upstream/${relativePath}"
-                return
-            }
-            def digest = MessageDigest.getInstance('SHA-256')
-            Files.newInputStream(evidenceFile).withCloseable { stream ->
-                byte[] buffer = new byte[64 * 1024]
-                int read
-                while ((read = stream.read(buffer)) != -1) digest.update(buffer, 0, read)
-            }
-            def actualHash = digest.digest().collect { value -> String.format('%02x', value & 0xff) }.join()
-            if (actualHash != expectedHash) {
-                failures << "mismatch: docs/upstream/${relativePath} expected=${expectedHash} actual=${actualHash}"
-                return
-            }
-            verified++
-        }
-
-        def evidenceFiles = upstreamEvidenceDirectory.listFiles()
-                .findAll { it.isFile() && it.name != snapshotEvidenceManifest.name }
-                .collect { it.name } as Set
-        (evidenceFiles - seenPaths).sort().each { path ->
-            failures << "unmanifested frozen evidence: docs/upstream/${path}"
-        }
-        if (verified == 0) failures << 'evidence manifest contains no verified entries'
-        if (!seenPaths.contains('SNAPSHOT_MANIFEST.sha256')) {
-            failures << 'evidence manifest does not protect SNAPSHOT_MANIFEST.sha256'
-        }
-        if (!failures.isEmpty()) {
-            throw new GradleException(
-                    "Frozen evidence verification failed (${failures.size()} issue(s)):\n - " + failures.join('\n - '))
-        }
-
-        logger.lifecycle(
-                'Frozen upstream provenance verified: {} immutable evidence files. Evolved sources under versions/ are intentionally outside this check.',
-                verified)
+    repositories {
+        maven { url "https://maven.neoforged.net/releases/" }
+        maven { url "https://maven.parchmentmc.org/" }
+        maven { url "https://maven.fabricmc.net/" }
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://maven.shedaniel.me/" }
+        mavenCentral()
     }
-}
 
-def distributionArtifacts = [
-        [version: '1.21.1', platform: 'fabric'],
-        [version: '1.21.1', platform: 'neoforge'],
-        [version: '1.21.4', platform: 'fabric']
-]
-
-tasks.register('collectDistributions') {
-    group = aggregateTaskGroup
-    description = 'Collects the three supported final JARs: 1.21.1 Fabric/NeoForge and 1.21.4 Fabric.'
-    mustRunAfter('buildAll')
-
-    doLast {
-        def copyPlan = []
-        def destinationKeys = new HashSet<String>()
-        def failures = []
-
-        distributionArtifacts.each { artifact ->
-            def versionDirectory = layout.projectDirectory.dir("versions/${artifact.version}").asFile
-            def propertiesFile = new File(versionDirectory, 'gradle.properties')
-            if (!propertiesFile.isFile()) {
-                failures << "missing Gradle properties: ${project.relativePath(propertiesFile)}"
-                return
-            }
-
-            def versionProperties = new Properties()
-            propertiesFile.withInputStream { versionProperties.load(it) }
-            def requiredProperties = ['mod_id', 'minecraft_version', 'mod_version']
-            def missingProperties = requiredProperties.findAll { !versionProperties.getProperty(it) }
-            if (!missingProperties.isEmpty()) {
-                failures << "${project.relativePath(propertiesFile)} lacks ${missingProperties.join(', ')}"
-                return
-            }
-
-            def jarName = "${versionProperties.mod_id}-${artifact.platform}-${versionProperties.minecraft_version}-${versionProperties.mod_version}.jar"
-            def source = new File(versionDirectory, "${artifact.platform}/build/libs/${jarName}")
-            def destination = layout.projectDirectory.file("dist/${artifact.version}/${jarName}").asFile
-            def destinationKey = "${artifact.version}/${jarName}".toLowerCase(Locale.ROOT)
-
-            if (!destinationKeys.add(destinationKey)) {
-                failures << "duplicate distribution destination: dist/${artifact.version}/${jarName}"
-            }
-            if (!source.isFile()) {
-                failures << "missing unclassified final JAR: ${project.relativePath(source)}"
-            }
-            copyPlan << [source: source, destination: destination]
-        }
-
-        if (!failures.isEmpty()) {
-            throw new GradleException(
-                    "Distribution collection refused (${failures.size()} issue(s)):\n - " + failures.join('\n - '))
-        }
-
-        project.delete(
-                layout.projectDirectory.dir('dist/1.21.1'),
-                layout.projectDirectory.dir('dist/1.21.4'))
-        copyPlan.each { item ->
-            if (!item.destination.parentFile.mkdirs() && !item.destination.parentFile.isDirectory()) {
-                throw new GradleException("Cannot create distribution directory: ${item.destination.parentFile}")
-            }
-            Files.copy(item.source.toPath(), item.destination.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            logger.lifecycle('Collected {}', project.relativePath(item.destination))
-        }
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+        options.release = 21
     }
-}
 
-/*
- * Provide the conventional exact task name. Without it, Gradle treats
- * "build" as an abbreviation and finds build1211/build1214/buildAll, making
- * the command ambiguous. This aggregate build also collects deployable JARs
- * and verifies frozen provenance after both isolated version builds finish.
- */
-tasks.register('build') {
-    group = 'build'
-    description = 'Builds all supported versions, verifies provenance, and collects deployable JARs into dist.'
-    dependsOn('buildAll', 'verifySnapshotManifest', 'collectDistributions')
+    java {
+        withSourcesJar()
+    }
 }

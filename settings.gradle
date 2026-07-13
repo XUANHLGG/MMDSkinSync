@@ -1,35 +1,18 @@
-rootProject.name = 'mmdsync-aggregate'
-
-/*
- * Architectury 3.4 applies Gradle's IDEA plugin. Gradle 8.11 cannot configure
- * both byte-frozen builds at once because their internal project names match.
- * Select the one addressed by a single-version aggregate/direct task; buildAll
- * deliberately starts both independent wrappers from the aggregate script.
- */
-def requestedTasks = gradle.startParameter.taskNames.collect { task ->
-    task.toLowerCase(java.util.Locale.ROOT)
-}
-def direct1211 = requestedTasks.any { it.startsWith(':mc1211:') }
-def direct1214 = requestedTasks.any { it.startsWith(':mc1214:') }
-def aggregate1211 = requestedTasks.any { task ->
-    ['build1211', 'compile1211', 'clean1211'].contains(task.tokenize(':').last())
-}
-def aggregate1214 = requestedTasks.any { task ->
-    ['build1214', 'compile1214', 'clean1214'].contains(task.tokenize(':').last())
-}
-
-if (direct1211 && direct1214) {
-    throw new GradleException('Architectury 3.4 prevents loading mc1211 and mc1214 together; use buildAll or separate commands.')
-}
-
-if ((direct1211 || aggregate1211) && !(direct1214 || aggregate1214)) {
-    includeBuild('versions/1.21.1') {
-        name = 'mc1211'
+pluginManagement {
+    repositories {
+        maven { url "https://maven.fabricmc.net/" }
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://maven.neoforged.net/releases/" }
+        gradlePluginPortal()
     }
-    gradle.ext.activeVersionBuild = 'mc1211'
-} else if ((direct1214 || aggregate1214) && !(direct1211 || aggregate1211)) {
-    includeBuild('versions/1.21.4') {
-        name = 'mc1214'
-    }
-    gradle.ext.activeVersionBuild = 'mc1214'
 }
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'mmdsync'
+
+include("common")
+include("fabric")
+include("neoforge")

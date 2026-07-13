@@ -1,0 +1,84 @@
+plugins {
+    id "com.gradleup.shadow"
+}
+
+base {
+    archivesName = "${project.mod_id}-fabric-${project.minecraft_version}"
+}
+
+architectury {
+    platformSetupLoomIde()
+    fabric()
+}
+
+configurations {
+    common
+    shadowCommon
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+    modApi "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    modApi "dev.architectury:architectury-fabric:${project.architectury_version}"
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive = false }
+    shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive = true }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowCommon]
+    archiveClassifier = "dev-shadow"
+    exclude 'com/shiroha/mmdskin/NativeFunc.class'
+    exclude 'com/shiroha/mmdskin/renderer/model/MMDModelNativeRender.class'
+    exclude 'com/shiroha/mmdskin/renderer/resource/MMDTextureManager.class'
+    exclude 'com/shiroha/mmdskin/renderer/animation/MMDAnimManager.class'
+}
+
+remapJar {
+    input.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = null
+}
+
+jar {
+    archiveClassifier = "dev"
+}
+
+sourcesJar {
+    def commonSources = project(":common").sourcesJar
+    dependsOn commonSources
+    from commonSources.archiveFile.map { zipTree(it) }
+}
+
+components.java {
+    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
+        skip()
+    }
+}
+
+processResources {
+    inputs.property "mod_id", project.mod_id
+    inputs.property "mod_name", project.mod_name
+    inputs.property "mod_description", project.mod_description
+    inputs.property "mod_authors", project.mod_authors
+    inputs.property "mod_license", project.mod_license
+    inputs.property "version", project.version
+    inputs.property "fabric_loader_version", project.fabric_loader_version
+    inputs.property "architectury_version", project.architectury_version
+
+    filesMatching("fabric.mod.json") {
+        expand(
+                "mod_id": project.mod_id,
+                "mod_name": project.mod_name,
+                "mod_description": project.mod_description,
+                "mod_authors": project.mod_authors,
+                "mod_license": project.mod_license,
+                "version": project.version,
+                "fabric_loader_version": project.fabric_loader_version,
+                "architectury_version": project.architectury_version
+        )
+    }
+}

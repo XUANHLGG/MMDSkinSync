@@ -1,0 +1,85 @@
+plugins {
+    id "com.gradleup.shadow"
+}
+
+base {
+    archivesName = "${project.mod_id}-neoforge-${project.minecraft_version}"
+}
+
+architectury {
+    platformSetupLoomIde()
+    neoForge()
+}
+
+configurations {
+    common
+    shadowCommon
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentNeoForge.extendsFrom common
+}
+
+dependencies {
+    neoForge "net.neoforged:neoforge:${project.neo_version}"
+    modImplementation "dev.architectury:architectury-neoforge:${project.architectury_version}"
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive = false }
+    shadowCommon(project(path: ":common", configuration: "transformProductionNeoForge")) { transitive = true }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowCommon]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    input.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = null
+}
+
+jar {
+    archiveClassifier = "dev"
+}
+
+sourcesJar {
+    def commonSources = project(":common").sourcesJar
+    dependsOn commonSources
+    from commonSources.archiveFile.map { zipTree(it) }
+}
+
+components.java {
+    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
+        skip()
+    }
+}
+
+processResources {
+    inputs.property "mod_id", project.mod_id
+    inputs.property "mod_name", project.mod_name
+    inputs.property "mod_description", project.mod_description
+    inputs.property "mod_authors", project.mod_authors
+    inputs.property "mod_license", project.mod_license
+    inputs.property "version", project.version
+    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "minecraft_version_range", project.minecraft_version_range
+    inputs.property "neo_version", project.neo_version
+    inputs.property "neo_version_range", project.neo_version_range
+    inputs.property "loader_version_range", project.loader_version_range
+
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand(
+                "mod_id": project.mod_id,
+                "mod_name": project.mod_name,
+                "mod_description": project.mod_description,
+                "mod_authors": project.mod_authors,
+                "mod_license": project.mod_license,
+                "version": project.version,
+                "minecraft_version": project.minecraft_version,
+                "minecraft_version_range": project.minecraft_version_range,
+                "neo_version": project.neo_version,
+                "neo_version_range": project.neo_version_range,
+                "loader_version_range": project.loader_version_range
+        )
+    }
+}

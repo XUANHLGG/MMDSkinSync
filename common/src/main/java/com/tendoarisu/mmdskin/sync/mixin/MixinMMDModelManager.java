@@ -94,3 +94,15 @@ public class MixinMMDModelManager {
     }
 }
 
+@Mixin(targets = "com.shiroha.mmdskin.renderer.runtime.model.MMDModelManager", remap = false)
+class MixinRuntimeMMDModelManager {
+    @Inject(method = "applyMaterialVisibility", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void guardApplyMaterialVisibility(long modelHandle, String modelName, CallbackInfo ci) {
+        if (MMDSyncNativeBridge.isBridgeHandle(modelHandle)
+            && !MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
+            MMDSyncMod.LOGGER.warn("阻止对过期加密模型句柄应用材质可见性: model={}, name={}", modelHandle, modelName);
+            ci.cancel();
+        }
+    }
+}
+
