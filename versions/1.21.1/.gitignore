@@ -1,0 +1,31 @@
+# eclipse
+bin
+*.launch
+.settings
+.metadata
+.classpath
+.project
+
+# idea
+out
+*.ipr
+*.iws
+*.iml
+.idea
+
+# gradle
+build
+.gradle
+
+# other
+eclipse
+run
+runs
+run-data
+repo
+
+# 乱七八糟的东西 (其他子项目/目录/临时文件)
+.architectury-transformer/
+MmdSkin-Bukkit/
+MC-MMD-rust/
+.ai_progress.md

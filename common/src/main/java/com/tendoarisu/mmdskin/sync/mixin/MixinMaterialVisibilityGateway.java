@@ -1,109 +1,105 @@
 package com.tendoarisu.mmdskin.sync.mixin;
 
 import com.opdent.mmdskin.sync.MMDSyncMod;
-import com.shiroha.mmdskin.NativeFunc;
+import com.shiroha.mmdskin.bridge.runtime.NativeModelPort;
+import com.shiroha.mmdskin.bridge.runtime.NativeModelQueryPort;
 import com.tendoarisu.mmdskin.sync.util.MMDSyncNativeBridge;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(targets = "com.shiroha.mmdskin.ui.selector.adapter.DefaultMaterialVisibilityGateway", remap = false)
-public class MixinMaterialVisibilityGateway {
+public abstract class MixinMaterialVisibilityGateway {
 
     @Redirect(
             method = "loadMaterials",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/shiroha/mmdskin/NativeFunc;GetMaterialCount(J)J"
+                    target = "Lcom/shiroha/mmdskin/bridge/runtime/NativeModelPort;getMaterialCount(J)I"
             ),
             remap = false
     )
-    private long redirectGetMaterialCount(NativeFunc instance, long modelHandle) {
+    private int mmdsync$getMaterialCount(NativeModelPort port, long modelHandle) {
         if (!MMDSyncNativeBridge.isBridgeHandle(modelHandle)) {
-            return instance.GetMaterialCount(modelHandle);
+            return port.getMaterialCount(modelHandle);
         }
         if (!MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
             MMDSyncMod.LOGGER.warn("阻止读取过期加密模型材质数量: model={}", modelHandle);
-            return 0L;
+            return 0;
         }
-        return MMDSyncNativeBridge.getMaterialCount(modelHandle);
+        long count = MMDSyncNativeBridge.getMaterialCount(modelHandle);
+        return count > 0L && count <= Integer.MAX_VALUE ? (int) count : 0;
     }
 
     @Redirect(
             method = "loadMaterials",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/shiroha/mmdskin/NativeFunc;GetMaterialName(JI)Ljava/lang/String;"
+                    target = "Lcom/shiroha/mmdskin/bridge/runtime/NativeModelQueryPort;getMaterialName(JI)Ljava/lang/String;"
             ),
             remap = false
     )
-    private String redirectGetMaterialName(NativeFunc instance, long modelHandle, int index) {
+    private String mmdsync$getMaterialName(NativeModelQueryPort port, long modelHandle, int index) {
         if (!MMDSyncNativeBridge.isBridgeHandle(modelHandle)) {
-            return instance.GetMaterialName(modelHandle, index);
+            return port.getMaterialName(modelHandle, index);
         }
         if (!MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
             MMDSyncMod.LOGGER.warn("阻止读取过期加密模型材质名称: model={}, index={}", modelHandle, index);
             return "";
         }
-        return MMDSyncNativeBridge.getMaterialName(modelHandle, index);
+        String name = MMDSyncNativeBridge.getMaterialName(modelHandle, index);
+        return name != null ? name : "";
     }
 
     @Redirect(
             method = "loadMaterials",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/shiroha/mmdskin/NativeFunc;IsMaterialVisible(JI)Z"
+                    target = "Lcom/shiroha/mmdskin/bridge/runtime/NativeModelQueryPort;isMaterialVisible(JI)Z"
             ),
             remap = false
     )
-    private boolean redirectIsMaterialVisible(NativeFunc instance, long modelHandle, int index) {
+    private boolean mmdsync$isMaterialVisible(NativeModelQueryPort port, long modelHandle, int index) {
         if (!MMDSyncNativeBridge.isBridgeHandle(modelHandle)) {
-            return instance.IsMaterialVisible(modelHandle, index);
+            return port.isMaterialVisible(modelHandle, index);
         }
-        if (!MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
-            MMDSyncMod.LOGGER.warn("阻止读取过期加密模型材质可见性: model={}, index={}", modelHandle, index);
-            return false;
-        }
-        return MMDSyncNativeBridge.isMaterialVisible(modelHandle, index);
+        return MMDSyncNativeBridge.isModelHandleValid(modelHandle)
+                && MMDSyncNativeBridge.isMaterialVisible(modelHandle, index);
     }
 
     @Redirect(
             method = "setAllVisible",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/shiroha/mmdskin/NativeFunc;SetAllMaterialsVisible(JZ)V"
+                    target = "Lcom/shiroha/mmdskin/bridge/runtime/NativeModelPort;setAllMaterialsVisible(JZ)V"
             ),
             remap = false
     )
-    private void redirectSetAllMaterialsVisible(NativeFunc instance, long modelHandle, boolean visible) {
+    private void mmdsync$setAllMaterialsVisible(NativeModelPort port, long modelHandle, boolean visible) {
         if (!MMDSyncNativeBridge.isBridgeHandle(modelHandle)) {
-            instance.SetAllMaterialsVisible(modelHandle, visible);
+            port.setAllMaterialsVisible(modelHandle, visible);
             return;
         }
-        if (!MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
-            MMDSyncMod.LOGGER.warn("阻止批量设置过期加密模型材质可见性: model={}, visible={}", modelHandle, visible);
-            return;
+        if (MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
+            MMDSyncNativeBridge.setAllMaterialsVisible(modelHandle, visible);
         }
-        MMDSyncNativeBridge.setAllMaterialsVisible(modelHandle, visible);
     }
 
     @Redirect(
             method = "setMaterialVisible",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/shiroha/mmdskin/NativeFunc;SetMaterialVisible(JIZ)V"
+                    target = "Lcom/shiroha/mmdskin/bridge/runtime/NativeModelPort;setMaterialVisible(JIZ)V"
             ),
             remap = false
     )
-    private void redirectSetMaterialVisible(NativeFunc instance, long modelHandle, int index, boolean visible) {
+    private void mmdsync$setMaterialVisible(NativeModelPort port, long modelHandle, int index, boolean visible) {
         if (!MMDSyncNativeBridge.isBridgeHandle(modelHandle)) {
-            instance.SetMaterialVisible(modelHandle, index, visible);
+            port.setMaterialVisible(modelHandle, index, visible);
             return;
         }
-        if (!MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
-            MMDSyncMod.LOGGER.warn("阻止设置过期加密模型单个材质可见性: model={}, index={}, visible={}", modelHandle, index, visible);
-            return;
+        if (MMDSyncNativeBridge.isModelHandleValid(modelHandle)) {
+            MMDSyncNativeBridge.setMaterialVisible(modelHandle, index, visible);
         }
-        MMDSyncNativeBridge.setMaterialVisible(modelHandle, index, visible);
     }
 }

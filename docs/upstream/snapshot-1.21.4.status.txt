@@ -1,0 +1,48 @@
+snapshot.version=1.21.4
+source.absolute=C:\Users\Administrator\Desktop\MMDSkin\MMDSkinSync
+source.relative.from.workspace=MMDSkinSync
+origin=https://github.com/XUANHLGG/MMDSkinSync.git
+branch=1.21.1
+upstream=origin/1.21.1
+head=613f2cb81c1741920ae2b779fe4afa80f88d24f6
+collected.utc=2026-07-13T04:41:23.216Z
+status.command=git status --porcelain=v1 -uall
+status.sha256.utf8-lf-no-trailing-newline=9b912b225d5212681dccd159f4882d77f7e6da9fdaab0d41e1eb21381da0d968
+status.begin
+ M build.gradle
+ M common/build.gradle
+ M common/src/main/java/com/opdent/mmdskin/sync/MMDSyncModClient.java
+ M common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinMMDModelManager.java
+ M common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinMaterialVisibilityGateway.java
+ D common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinMaterialVisibilityScreen.java
+ D common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinMmdSkinApi.java
+ D common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinModelSelectorScreen.java
+ D common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinMorphSyncHelper.java
+ D common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinMorphWheelScreen.java
+ M common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinSceneModelManager.java
+ D common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinVRBoneDriver.java
+ D common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/ModelCardEntryAccessor.java
+ M common/src/main/resources/mmdsync-common.mixins.json
+ M fabric/build.gradle
+ M fabric/src/main/java/com/opdent/mmdskin/sync/fabric/MMDSyncModFabric.java
+ M fabric/src/main/java/com/opdent/mmdskin/sync/fabric/MMDSyncModFabricClient.java
+ M fabric/src/main/java/com/opdent/mmdskin/sync/fabric/mixin/MixinModelSelectorScreenFabric.java
+ M fabric/src/main/java/com/opdent/mmdskin/sync/fabric/mixin/MixinStageSelectScreenFabric.java
+ M fabric/src/main/resources/fabric.mod.json
+ M fabric/src/main/resources/mmdsync-fabric.mixins.json
+ M gradle.properties
+ D libs/mmdskin-common-1.0.4-1.21.1.jar
+ M neoforge/src/main/java/com/opdent/mmdskin/sync/neoforge/MMDSyncModNeoForge.java
+ M neoforge/src/main/java/com/opdent/mmdskin/sync/neoforge/mixin/MixinModelSelectorScreenNeoForge.java
+ M neoforge/src/main/java/com/opdent/mmdskin/sync/neoforge/mixin/MixinStageSelectScreenNeoForge.java
+ M neoforge/src/main/resources/META-INF/neoforge.mods.toml
+ M neoforge/src/main/resources/mmdsync-neoforge.mixins.json
+?? common/src/main/java/com/tendoarisu/mmdskin/sync/mixin/MixinRuntimeMMDModelManager.java
+?? common/src/main/java/com/tendoarisu/mmdskin/sync/runtime/HybridNativeRuntime.java
+?? common/src/main/resources/assets/mmdsync/icon.png
+?? libs/mmdskin-common-1.0.5-1.21.4-1.jar
+?? neoforge/src/main/java/com/opdent/mmdskin/sync/neoforge/MMDSyncNeoForgeClientPayloadHandlers.java
+?? neoforge/src/main/java/com/opdent/mmdskin/sync/neoforge/MMDSyncNeoForgeClientRegistration.java
+?? neoforge/src/main/java/com/opdent/mmdskin/sync/neoforge/MMDSyncNeoForgePayloadHandlers.java
+?? neoforge/src/main/resources/icon.png
+status.end

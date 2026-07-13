@@ -1,0 +1,56 @@
+plugins {
+    id "architectury-plugin" version "3.4.162"
+    id "dev.architectury.loom" version "1.9.424" apply false
+    id "com.gradleup.shadow" version "8.3.10" apply false
+}
+
+apply from: rootProject.file('../../gradle/mixin-target-audit.gradle')
+
+architectury {
+    minecraft = project.minecraft_version
+}
+
+subprojects {
+    apply plugin: "dev.architectury.loom"
+    apply plugin: "architectury-plugin"
+
+    loom {
+        silentMojangMappingsLicense()
+    }
+
+    base {
+        archivesName = project.mod_id
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${project.minecraft_version}"
+        mappings loom.officialMojangMappings()
+    }
+}
+
+allprojects {
+    apply plugin: "java"
+    apply plugin: "maven-publish"
+
+    version = project.mod_version
+    group = project.mod_group_id
+
+    repositories {
+        maven { url "https://maven.fabricmc.net/" }
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://maven.shedaniel.me/" }
+        mavenCentral()
+    }
+
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+        options.release = 21
+    }
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+        withSourcesJar()
+    }
+}
