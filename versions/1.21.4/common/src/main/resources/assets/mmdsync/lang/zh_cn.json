@@ -1,0 +1,4 @@
+{
+  "modmenu.summaryTranslation.mmdsync": "同步 MMDSkin 模型和动作。",
+  "modmenu.descriptionTranslation.mmdsync": "一个用于自动从服务器同步 PMX 模型和 VMD 动作文件的插件，专为 MMDSkin Mod 设计。"
+}

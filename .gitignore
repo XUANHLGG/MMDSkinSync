@@ -13,11 +13,24 @@ out
 *.iml
 .idea
 
-# gradle
+# gradle (also covers each versions/* included build)
 build
 .gradle
+logs
+*.log
+*.log.gz
 
-# other
+# Keep the root release/deployment helpers while ignoring generated build output.
+!/build/
+/build/*
+!/build/*.ps1
+
+# aggregate outputs
+/dist/
+/reports/
+
+# other (also covers each versions/* included build)
+out
 eclipse
 run
 runs

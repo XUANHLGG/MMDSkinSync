@@ -7,7 +7,7 @@ loom {
 
 dependencies {
     modImplementation "dev.architectury:architectury:${project.architectury_version}"
-    modCompileOnly files("../libs/mmdskin-common-1.0.4-1.21.1.jar")
+    modCompileOnly files("../libs/mmdskin-common-1.0.5-1.21.4-1.jar")
 }
 
 jar {

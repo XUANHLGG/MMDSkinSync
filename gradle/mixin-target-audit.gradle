@@ -1,0 +1,259 @@
+import groovy.json.JsonSlurper
+
+/*
+ * Audits strict remap=false mixins against the exact named MC-MMD common JAR.
+ * Fabric Screen overrides are the only namespace exceptions: their production
+ * intermediary selectors are translated back to named signatures before the
+ * exact dependency JAR is checked.
+ */
+
+def minecraftVersion = rootProject.property('minecraft_version').toString()
+def exactMmdSkinVersion = [
+        '1.21.1': '1.0.5-1.21.1-2',
+        '1.21.4': '1.0.5-1.21.4-1'
+][minecraftVersion]
+if (exactMmdSkinVersion == null) {
+    throw new GradleException("No MMDSkin Mixin audit profile for Minecraft ${minecraftVersion}")
+}
+
+def exactMmdSkinJar = rootProject.file("libs/mmdskin-common-${exactMmdSkinVersion}.jar")
+def sourceRoots = [
+        rootProject.file('common/src/main/java'),
+        rootProject.file('fabric/src/main/java'),
+        rootProject.file('neoforge/src/main/java')
+].findAll { it.isDirectory() }
+def resourceRoots = [
+        rootProject.file('common/src/main/resources'),
+        rootProject.file('fabric/src/main/resources'),
+        rootProject.file('neoforge/src/main/resources')
+].findAll { it.isDirectory() }
+
+def fabricRuntimeToNamed = [
+        'method_25393()V'                              : 'tick()V',
+        'method_25394(Lnet/minecraft/class_332;IIF)V' : 'render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V',
+        'method_25402(DDI)Z'                          : 'mouseClicked(DDI)Z'
+]
+
+def reflectionRequirements = [
+        'com.shiroha.mmdskin.config.UIConstants'                         : ['DEFAULT_MODEL_NAME'],
+        'com.shiroha.mmdskin.ui.config.ModelSelectorConfig'              : ['getInstance', 'getSelectedModel', 'setSelectedModel'],
+        'com.shiroha.mmdskin.renderer.runtime.model.MMDModelManager'     : ['forceReloadAllModels'],
+        'com.shiroha.mmdskin.stage.client.sync.StageAnimSyncHelper'      : ['onDisconnect'],
+        'com.shiroha.mmdskin.asset.catalog.ModelInfo'                    : ['invalidateCache'],
+        'com.shiroha.mmdskin.ui.network.ModelSelectorNetworkHandler'     : ['getInstance', 'setNetworkSender'],
+        'com.shiroha.mmdskin.ui.network.PlayerModelSyncManager'          : ['setNetworkBroadcaster']
+]
+
+def auditTask = tasks.register('verifyMixinTargets') {
+    group = 'verification'
+    description = 'Checks strict Mixin selectors, invokers, native call targets, JSON manifests, and reflection collaborators against the exact MC-MMD JAR.'
+    inputs.file(exactMmdSkinJar)
+    inputs.files(sourceRoots.collect { rootProject.fileTree(it) { include '**/*.java' } })
+    inputs.files(resourceRoots.collect { rootProject.fileTree(it) { include '**/*mixins.json' } })
+
+    doLast {
+        if (!exactMmdSkinJar.isFile()) {
+            throw new GradleException("Exact MC-MMD audit JAR is missing: ${rootProject.relativePath(exactMmdSkinJar)}")
+        }
+
+        def failures = []
+        def javaFiles = sourceRoots.collectMany { root ->
+            rootProject.fileTree(root) { include '**/*.java' }.files
+        }.sort { it.absolutePath }
+        def mixinFiles = javaFiles.findAll { it.getText('UTF-8').contains('@Mixin') }
+        def javapCache = [:]
+
+        def javapExecutableName = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+                ? 'javap.exe'
+                : 'javap'
+        def javapExecutable = new File(System.getProperty('java.home'), "bin/${javapExecutableName}")
+        def javapCommand = javapExecutable.isFile() ? javapExecutable.absolutePath : javapExecutableName
+
+        def inspectClass
+        inspectClass = { String className ->
+            if (javapCache.containsKey(className)) {
+                return javapCache[className]
+            }
+            def stdout = new ByteArrayOutputStream()
+            def stderr = new ByteArrayOutputStream()
+            def result = rootProject.exec {
+                commandLine javapCommand, '-classpath', exactMmdSkinJar.absolutePath, '-p', '-s', className
+                standardOutput = stdout
+                errorOutput = stderr
+                ignoreExitValue = true
+            }
+            if (result.exitValue != 0) {
+                failures << "missing target class ${className}: ${stderr.toString('UTF-8').trim()}"
+                def missing = [methods: [:].withDefault { new LinkedHashSet<String>() }, text: '']
+                javapCache[className] = missing
+                return missing
+            }
+
+            def output = stdout.toString('UTF-8')
+            def methods = [:].withDefault { new LinkedHashSet<String>() }
+            def lines = output.readLines()
+            for (int i = 0; i < lines.size(); i++) {
+                def declaration = lines[i].trim()
+                if (!declaration.contains('(') || !declaration.endsWith(';')) {
+                    continue
+                }
+                int open = declaration.indexOf('(')
+                def prefix = declaration.substring(0, open).trim()
+                def methodName = prefix.split(/\s+/).last()
+                if (methodName.contains('.')) {
+                    continue
+                }
+                for (int j = i + 1; j < Math.min(lines.size(), i + 4); j++) {
+                    def descriptorLine = lines[j].trim()
+                    if (descriptorLine.startsWith('descriptor:')) {
+                        methods[methodName] << descriptorLine.substring('descriptor:'.length()).trim()
+                        break
+                    }
+                    if (descriptorLine && !descriptorLine.startsWith('descriptor:')) {
+                        break
+                    }
+                }
+            }
+            def inspected = [methods: methods, text: output]
+            javapCache[className] = inspected
+            return inspected
+        }
+
+        def validateMethod = { String owner, String selector, String evidence ->
+            def inspected = inspectClass(owner)
+            int descriptorStart = selector.indexOf('(')
+            def methodName = descriptorStart >= 0 ? selector.substring(0, descriptorStart) : selector
+            def descriptor = descriptorStart >= 0 ? selector.substring(descriptorStart) : null
+            def available = inspected.methods[methodName]
+            if (available == null || available.isEmpty()) {
+                failures << "${evidence}: ${owner}.${selector} does not exist"
+            } else if (descriptor != null && !available.contains(descriptor)) {
+                failures << "${evidence}: ${owner}.${selector} descriptor mismatch; available=${available}"
+            }
+        }
+
+        def configuredMixinSources = new LinkedHashSet<String>()
+        def jsonFiles = resourceRoots.collectMany { root ->
+            rootProject.fileTree(root) { include '**/*mixins.json' }.files
+        }.sort { it.absolutePath }
+        jsonFiles.each { jsonFile ->
+            def json = new JsonSlurper().parse(jsonFile)
+            def relativeJson = rootProject.relativePath(jsonFile)
+            if (json.required != true) failures << "${relativeJson}: required must be true"
+            if (json.compatibilityLevel != 'JAVA_21') failures << "${relativeJson}: compatibilityLevel must be JAVA_21"
+            if (json.refmap != 'mmdsync-common-refmap.json') failures << "${relativeJson}: unexpected refmap ${json.refmap}"
+            if (json.injectors?.defaultRequire != 1) failures << "${relativeJson}: defaultRequire must be 1"
+            def packageName = json.package?.toString()
+            ['mixins', 'client', 'server'].each { key ->
+                (json[key] ?: []).each { simpleName ->
+                    def sourcePath = packageName.replace('.', '/') + '/' + simpleName + '.java'
+                    def matches = sourceRoots.collect { new File(it, sourcePath) }.findAll { it.isFile() }
+                    if (matches.size() != 1) {
+                        failures << "${relativeJson}: ${packageName}.${simpleName} resolves to ${matches.size()} source files"
+                    } else {
+                        configuredMixinSources << matches[0].canonicalPath
+                    }
+                }
+            }
+        }
+
+        mixinFiles.each { sourceFile ->
+            def text = sourceFile.getText('UTF-8')
+            def relativeSource = rootProject.relativePath(sourceFile)
+            if (!configuredMixinSources.contains(sourceFile.canonicalPath)) {
+                failures << "${relativeSource}: Mixin source is not listed in a Mixin JSON"
+            }
+            if (text.contains('@Pseudo')) {
+                failures << "${relativeSource}: @Pseudo is forbidden for required MC-MMD targets"
+            }
+            if (text ==~ /(?s).*\brequire\s*=\s*0\b.*/) {
+                failures << "${relativeSource}: require=0 is forbidden"
+            }
+            if (!text.contains('remap = false')) {
+                return
+            }
+
+            def directTarget = (text =~ /@Mixin\s*\(\s*targets\s*=\s*"([^"]+)"/)
+            String targetClass = directTarget.find() ? directTarget.group(1) : null
+            if (targetClass == null) {
+                def classTarget = (text =~ /@Mixin\s*\(\s*(?:value\s*=\s*)?([A-Za-z_$][A-Za-z0-9_$]*)\.class/)
+                if (classTarget.find()) {
+                    def simpleTarget = classTarget.group(1)
+                    def imported = (text =~ /import\s+([A-Za-z0-9_.$]+\.${java.util.regex.Pattern.quote(simpleTarget)});/)
+                    if (imported.find()) {
+                        targetClass = imported.group(1)
+                    }
+                }
+            }
+            if (targetClass == null) {
+                failures << "${relativeSource}: unable to resolve remap=false Mixin target class"
+                return
+            }
+            inspectClass(targetClass)
+
+            def selectors = new LinkedHashSet<String>()
+            (text =~ /method\s*=\s*"([^"]+)"/).each { selectors << it[1] }
+            (text =~ /(?s)method\s*=\s*\{(.*?)\}/).each { arrayMatch ->
+                (arrayMatch[1] =~ /"([^"]+)"/).each { selectors << it[1] }
+            }
+            (text =~ /@Invoker\s*\(\s*(?:value\s*=\s*)?"([^"]+)"/).each { selectors << it[1] }
+
+            selectors.each { originalSelector ->
+                def selector = originalSelector
+                if (relativeSource.replace('\\', '/').contains('/fabric/')) {
+                    selector = fabricRuntimeToNamed.getOrDefault(originalSelector, originalSelector)
+                    if (originalSelector in ['tick()V', 'render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V', 'mouseClicked(DDI)Z']) {
+                        failures << "${relativeSource}: Fabric remap=false selector uses named production-unsafe name ${originalSelector}"
+                    }
+                }
+                if (selector.contains('Lnet/minecraft/') && !fabricRuntimeToNamed.containsValue(selector)) {
+                    failures << "${relativeSource}: remap=false selector embeds a Minecraft named descriptor; use an unambiguous bare upstream method or proven runtime selector: ${originalSelector}"
+                }
+                validateMethod(targetClass, selector, relativeSource)
+            }
+
+            (text =~ /target\s*=\s*"L([^;]+);([^"]+)"/).each { invocation ->
+                def owner = invocation[1].replace('/', '.')
+                def member = invocation[2]
+                if (owner.startsWith('com.shiroha.mmdskin.')) {
+                    validateMethod(owner, member, relativeSource + ' @At target')
+                }
+            }
+        }
+
+        mixinFiles.findAll { !configuredMixinSources.contains(it.canonicalPath) }.each { sourceFile ->
+            failures << "${rootProject.relativePath(sourceFile)}: stale/unconfigured Mixin class"
+        }
+
+        reflectionRequirements.each { className, members ->
+            def inspected = inspectClass(className)
+            members.each { member ->
+                if (!inspected.text.contains(member)) {
+                    failures << "reflection collaborator missing: ${className}.${member}"
+                }
+            }
+        }
+
+        if (!failures.isEmpty()) {
+            throw new GradleException(
+                    "MC-MMD ${exactMmdSkinVersion} Mixin target audit failed (${failures.size()} issue(s)):\n - "
+                            + failures.unique().join('\n - ')
+            )
+        }
+        logger.lifecycle(
+                'MC-MMD {} Mixin target audit passed: {} Mixin sources, {} JSON configs, {} inspected target/collaborator classes.',
+                exactMmdSkinVersion,
+                mixinFiles.size(),
+                jsonFiles.size(),
+                javapCache.size()
+        )
+    }
+}
+
+gradle.projectsEvaluated {
+    subprojects.each { subproject ->
+        subproject.tasks.matching { it.name == 'check' }.configureEach {
+            dependsOn(auditTask)
+        }
+    }
+}

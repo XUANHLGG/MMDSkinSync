@@ -2,11 +2,12 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.tendoarisu.mmdskin.sync.mixin",
-  "compatibilityLevel": "JAVA_17",
+  "compatibilityLevel": "JAVA_21",
   "refmap": "mmdsync-common-refmap.json",
   "mixins": [
     "MixinGui",
     "MixinMMDModelManager",
+    "MixinRuntimeMMDModelManager",
     "MixinMMDModelGpuSkinning",
     "MixinMMDModelGpuSkinningUploader",
     "MixinMMDModelGpuSkinningRenderer",
@@ -23,17 +24,10 @@
     "MixinMMDCameraData",
     "MixinStageRuntimeAnimationLoad",
     "MixinSceneModelManager",
-    "MixinVRBoneDriver",
-    "MixinMmdSkinApi",
-    "MixinMaterialVisibilityScreen",
     "MixinMaterialVisibilityGateway",
-    "MixinMorphWheelScreen",
-    "MixinMorphSyncHelper",
-    "MixinModelSelectorScreen",
     "MixinModelSettingsScreen",
     "MixinStageAnimSyncHelperNew",
-    "MixinStagePack",
-    "ModelCardEntryAccessor"
+    "MixinStagePack"
   ],
   "injectors": {
     "defaultRequire": 1

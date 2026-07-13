@@ -1,0 +1,25 @@
+pluginManagement {
+    repositories {
+        maven { url "https://maven.fabricmc.net/" }
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://maven.neoforged.net/releases/" }
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'mmdsync'
+
+def requestedTasks = gradle.startParameter.taskNames.collect { it.toLowerCase(java.util.Locale.ROOT) }
+def onlyCommonOrFabric = !requestedTasks.isEmpty() && requestedTasks.every { task ->
+    task.contains(":common:") || task.contains(":fabric:")
+}
+
+include("common")
+include("fabric")
+if (!onlyCommonOrFabric) {
+    include("neoforge")
+}
